@@ -11,7 +11,7 @@ import (
 )
 
 func main(){
-	file,err := os.Open("images/riri3.jpg")
+	file,err := os.Open("images/me2.jpg")
 	if err != nil {
 		panic("Could not open file")
 	}
@@ -28,5 +28,6 @@ func main(){
 	fmt.Println(height,width)
 	ascii := converter.ImageToAscii(img,height,width,aspectRatio)
 	converter.PrintAsciiImage(ascii,height,width)
+	converter.AsciiToImage(ascii,height,width)
 	
 }
