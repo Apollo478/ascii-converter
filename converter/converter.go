@@ -5,6 +5,7 @@ import (
 	"image"
 	"image/color"
 	"image/draw"
+	"image/gif"
 	_ "image/jpeg"
 	"image/png"
 	_ "image/png"
@@ -89,3 +90,64 @@ func AsciiToImage(chars [][]rune, height int, width int){
 	defer file.Close()
 	png.Encode(file,img)
 }
+func AsciiToGif(imgs [][][]rune, height int,width int,delays []int){
+	palette := []color.Color{
+		color.Black,
+		color.White,
+		color.RGBA{0,255,0,255},
+		color.RGBA{255,0,0,255},
+	}
+	anim := gif.GIF{
+		LoopCount: 0,
+	}
+	file, err := os.Create("ascii.gif")
+
+	if err != nil {
+		panic("Could not create image")
+	}
+	defer file.Close()
+	for _,chars := range imgs {
+		
+		frame := image.NewPaletted(image.Rect(0,0,width*7,height*13),palette)
+		face := basicfont.Face7x13
+		drawer := &font.Drawer{
+			Dst: frame,
+			Src: image.NewUniform(color.White),
+			Face: face,
+			Dot: fixed.Point26_6{X : fixed.I(20),Y : fixed.I(50)},
+		}
+		lineHeight := drawer.Face.Metrics().Height.Ceil()
+		charWidth := face.Advance
+		for y := 0; y < len(chars); y++{
+			drawer.Dot.X = fixed.I(0)
+			drawer.Dot.Y = fixed.I((y+1)* lineHeight)
+
+			for x := 0; x < len(chars[y]) ; x++{
+				char := chars[y][x]
+				drawer.DrawString(string(char))
+				drawer.Dot.X = fixed.I((x+1) * charWidth)
+			}
+		}
+		anim.Image = append(anim.Image, frame)
+	}
+	anim.Delay = append(anim.Delay, delays...)
+	gif.EncodeAll(file,&anim)
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
