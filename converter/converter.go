@@ -9,6 +9,7 @@ import (
 	_ "image/jpeg"
 	"image/png"
 	_ "image/png"
+	"sync"
 
 	"os"
 
@@ -106,51 +107,134 @@ func AsciiToImage(ascii Ascii_t, height int, width int,isColored bool){
 	defer file.Close()
 	png.Encode(file,img)
 }
-func AsciiToGif(imgs [][][]rune, height int,width int,delays []int){
-	palette := []color.Color{
-		color.Black,
-		color.White,
-		color.RGBA{0,255,0,255},
-		color.RGBA{255,0,0,255},
-	}
+func webSafePalette() []color.Color {
+    pale := make([]color.Color, 0, 256)
+    steps := []uint8{0x00, 0x33, 0x66, 0x99, 0xCC, 0xFF}
+    for _, r := range steps {
+        for _, g := range steps {
+            for _, b := range steps {
+                pale = append(pale, color.RGBA{r, g, b, 255})
+            }
+        }
+    }
+    // pad to 256 if needed
+    for len(pale) < 256 {
+        pale = append(pale, color.Black)
+    }
+    return pale
+}
+
+func AsciiToGifSlow(imgs []Ascii_t, height int,width int,delays []int, isColored bool){
 	anim := gif.GIF{
 		LoopCount: 0,
 	}
+	pale := webSafePalette()
 	file, err := os.Create("ascii.gif")
 
 	if err != nil {
 		panic("Could not create image")
 	}
 	defer file.Close()
-	for _,chars := range imgs {
-		
-		frame := image.NewPaletted(image.Rect(0,0,width*7,height*13),palette)
-		face := basicfont.Face7x13
-		drawer := &font.Drawer{
-			Dst: frame,
-			Src: image.NewUniform(color.White),
-			Face: face,
-			Dot: fixed.Point26_6{X : fixed.I(20),Y : fixed.I(50)},
-		}
-		lineHeight := drawer.Face.Metrics().Height.Ceil()
-		charWidth := face.Advance
-		for y := 0; y < len(chars); y++{
-			drawer.Dot.X = fixed.I(0)
-			drawer.Dot.Y = fixed.I((y+1)* lineHeight)
-
-			for x := 0; x < len(chars[y]) ; x++{
-				char := chars[y][x]
-				drawer.DrawString(string(char))
-				drawer.Dot.X = fixed.I((x+1) * charWidth)
+	frames := make([]*image.Paletted,len(imgs))
+	var wg sync.WaitGroup
+	for i,chars := range imgs {
+		wg.Add(1)
+		go func(i int ,chars Ascii_t){
+			defer wg.Done()
+			rgba := image.NewRGBA(image.Rect(0,0,width*7,height*13))
+			face := basicfont.Face7x13
+			drawer := &font.Drawer{
+				Dst: rgba,
+				Src: image.NewUniform(color.White),
+				Face: face,
+				Dot: fixed.Point26_6{X : fixed.I(20),Y : fixed.I(50)},
 			}
-		}
-		anim.Image = append(anim.Image, frame)
+			lineHeight := drawer.Face.Metrics().Height.Ceil()
+			charWidth := face.Advance
+			for y := 0; y < len(chars.AsciiChars); y++{
+				drawer.Dot.X = fixed.I(0)
+				drawer.Dot.Y = fixed.I((y+1)* lineHeight)
+
+				for x := 0; x < len(chars.AsciiChars[y]) ; x++{
+					if isColored {
+						drawer.Src =image.NewUniform(color.RGBA{
+							R : uint8(chars.RgbColors[y][x].R  ),
+							G : uint8(chars.RgbColors[y][x].G ),
+							B : uint8(chars.RgbColors[y][x].B ),
+							A: 255,
+						}) 
+					}
+					char := chars.AsciiChars[y][x]
+					drawer.DrawString(string(char))
+					drawer.Dot.X = fixed.I((x+1) * charWidth)
+				}
+			}
+			paletted := image.NewPaletted(rgba.Bounds(),pale)
+			draw.FloydSteinberg.Draw(paletted,rgba.Bounds(),rgba,image.Point{})
+			frames[i] = paletted
+			fmt.Println(i)
+		}(i,chars)
+		anim.Image = frames
 	}
+	wg.Wait()
 	anim.Delay = append(anim.Delay, delays...)
 	gif.EncodeAll(file,&anim)
 }
 
+func AsciiToGifFast(imgs []Ascii_t, height int,width int,delays []int, isColored bool){
+	anim := gif.GIF{
+		LoopCount: 0,
+	}
+	pale := webSafePalette()
+	file, err := os.Create("ascii.gif")
 
+	if err != nil {
+		panic("Could not create image")
+	}
+	defer file.Close()
+	frames := make([]*image.Paletted,len(imgs))
+	var wg sync.WaitGroup
+	for i,chars := range imgs {
+		wg.Add(1)
+		go func(i int ,chars Ascii_t){
+			defer wg.Done()
+			paletted := image.NewPaletted(image.Rect(0,0,width*7,height*13),pale)
+			face := basicfont.Face7x13
+			drawer := &font.Drawer{
+				Dst: paletted,
+				Src: image.NewUniform(color.White),
+				Face: face,
+				Dot: fixed.Point26_6{X : fixed.I(20),Y : fixed.I(50)},
+			}
+			lineHeight := drawer.Face.Metrics().Height.Ceil()
+			charWidth := face.Advance
+			for y := 0; y < len(chars.AsciiChars); y++{
+				drawer.Dot.X = fixed.I(0)
+				drawer.Dot.Y = fixed.I((y+1)* lineHeight)
+
+				for x := 0; x < len(chars.AsciiChars[y]) ; x++{
+					if isColored {
+						drawer.Src =image.NewUniform(color.RGBA{
+							R : uint8(chars.RgbColors[y][x].R  ),
+							G : uint8(chars.RgbColors[y][x].G ),
+							B : uint8(chars.RgbColors[y][x].B ),
+							A: 255,
+						}) 
+					}
+					char := chars.AsciiChars[y][x]
+					drawer.DrawString(string(char))
+					drawer.Dot.X = fixed.I((x+1) * charWidth)
+				}
+			}
+			frames[i] = paletted
+			fmt.Println(i)
+		}(i,chars)
+		anim.Image = frames
+	}
+	wg.Wait()
+	anim.Delay = append(anim.Delay, delays...)
+	gif.EncodeAll(file,&anim)
+}
 
 
 
