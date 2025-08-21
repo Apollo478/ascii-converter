@@ -32,10 +32,13 @@ func PixelToChar(gray uint8) rune{
 
 }
 
-func ImageToAscii(img image.Image,height int,width int,aspectRatio float64) [][]rune {
-	result := make([][]rune,height)
+func ImageToAscii(img image.Image,height int,width int,aspectRatio float64) Ascii_t {
+	var res Ascii_t 
+	res.AsciiChars = make([][]rune,height)
+	res.RgbColors = make([][]Rgb,height)
 	for i := 0; i!= height; i++{
-		result[i] = make([]rune,width)
+		res.AsciiChars[i] = make([]rune,width)
+		res.RgbColors[i] = make([]Rgb,width)
 	}
 
 	for y := 0; y < height; y++ {
@@ -45,13 +48,18 @@ func ImageToAscii(img image.Image,height int,width int,aspectRatio float64) [][]
 			r8 := uint8(r >> 8)
 			g8 := uint8(g >> 8)
 			b8 := uint8(b >> 8)
-
+			
 			gray := uint8(RGBToGraycale(uint32(r8), uint32(g8), uint32(b8)))
+			res.RgbColors[y][x] = Rgb{
+				uint32(r8),
+				uint32(g8), 
+				uint32(b8),
+			}
 			char := PixelToChar(gray)
-			result[y][x] = char
+			res.AsciiChars[y][x] = char
 		}
 	}
-	return result
+	return res
 }
 
 func PrintAsciiImage(img [][]rune, height int,width int) {
@@ -60,7 +68,7 @@ func PrintAsciiImage(img [][]rune, height int,width int) {
 		fmt.Println(string(row))
 	}
 }
-func AsciiToImage(chars [][]rune, height int, width int){
+func AsciiToImage(ascii Ascii_t, height int, width int,isColored bool){
 	img := image.NewRGBA(image.Rect(0,0,width*7,height*13))
 	draw.Draw(img,img.Bounds(),image.NewUniform(color.Black),image.Point{},draw.Src)
 	face := basicfont.Face7x13
@@ -77,7 +85,15 @@ func AsciiToImage(chars [][]rune, height int, width int){
 		drawer.Dot.Y = fixed.I((y+1)* lineHeight)
 
 		for x := 0; x < width ; x++{
-			char := chars[y][x]
+			char := ascii.AsciiChars[y][x]
+			if isColored {
+				drawer.Src =image.NewUniform(color.RGBA{
+					R : uint8(ascii.RgbColors[y][x].R  ),
+					G : uint8(ascii.RgbColors[y][x].G ),
+					B : uint8(ascii.RgbColors[y][x].B ),
+					A: 255,
+				}) 
+			}
 			drawer.DrawString(string(char))
 			drawer.Dot.X = fixed.I((x+1) * charWidth)
 		}
