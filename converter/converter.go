@@ -64,15 +64,38 @@ func ImageToGrayScale(img image.Image, height int,width int,aspectRatio float64)
 	return grayScale
 	
 }
-func ImageToAscii(img image.Image,height int,width int,aspectRatio float64) Ascii_t {
-	var res Ascii_t 
-	res.AsciiChars = make([][]rune,height)
-	res.RgbColors = make([][]Rgb,height)
-	for i := 0; i!= height; i++{
-		res.AsciiChars[i] = make([]rune,width)
-		res.RgbColors[i] = make([]Rgb,width)
+func CompressGrayScale(gray [][]uint8,compression int) [][]uint8{
+	
+	if compression == 0 {
+		return	nil
 	}
-	grayScale := ImageToGrayScale(img,height,width,aspectRatio)
+		
+	height := len(gray) / compression
+	width := len(gray[0]) / compression
+	grayScale := make([][]uint8,height)	
+	for i := 0; i!= height; i++{
+		grayScale[i] = make([]uint8,width)
+	}
+
+	for y := 0; y < height; y++ {
+		for x := 0; x < width; x++{
+			sum := 0	
+		 for dy := 0; dy < compression; dy++ {
+                for dx := 0; dx < compression; dx++ {
+                    sum += int(gray[y*compression+dy][x*compression+dx])
+                }
+            }
+            grayScale[y][x] = uint8(sum / (compression*compression))}
+	}
+	return grayScale
+}
+
+func ImageToRgb(img image.Image, height int, width int, aspectRatio float64) [][]Rgb {
+	rgbScale := make([][]Rgb,height)	
+	for i := 0; i!= height; i++{
+		rgbScale[i] = make([]Rgb,width)
+	}
+
 	for y := 0; y < height; y++ {
 		for x := 0; x < width; x++ {
 			srcY := int(float64(y) / aspectRatio)
@@ -81,15 +104,75 @@ func ImageToAscii(img image.Image,height int,width int,aspectRatio float64) Asci
 			g8 := uint8(g >> 8)
 			b8 := uint8(b >> 8)
 			
-			res.RgbColors[y][x] = Rgb{
+			rgbScale[y][x] = Rgb{
 				uint32(r8),
 				uint32(g8), 
 				uint32(b8),
 			}
+
+		}
+	}
+	return rgbScale
+}
+
+func CompressRgb(rgb [][]Rgb, compression int) [][]Rgb {
+	if compression == 0 {
+		return	nil
+	}
+		
+	height := len(rgb) / compression
+	width := len(rgb[0]) / compression
+	rgbScale := make([][]Rgb,height)	
+	for i := 0; i!= height; i++{
+		rgbScale[i] = make([]Rgb,width)
+	}
+
+	for y := 0; y < height; y++ {
+		for x := 0; x < width; x++{
+			Rsum := 0	
+			Gsum := 0	
+			Bsum := 0	
+		 for dy := 0; dy < compression; dy++ {
+                for dx := 0; dx < compression; dx++ {
+                    Rsum += int(rgb[y*compression+dy][x*compression+dx].R)
+                    Gsum += int(rgb[y*compression+dy][x*compression+dx].G)
+                    Bsum += int(rgb[y*compression+dy][x*compression+dx].B)
+                }
+            }
+            rgbScale[y][x] = Rgb{
+				R:	uint32(Rsum / (compression*compression)),
+				G:	uint32(Gsum / (compression*compression)),
+				B:	uint32(Bsum / (compression*compression)),
+			}
+
+		}
+	}
+	return rgbScale
+}
+
+func ImageToAscii(img image.Image,height int,width int,aspectRatio float64,compression int) Ascii_t {
+	grayScale := ImageToGrayScale(img,height,width,aspectRatio)
+	rgbScale := ImageToRgb(img,height,width,aspectRatio)
+	if compression != 0 {
+		grayScale = CompressGrayScale(grayScale,compression)
+		rgbScale = CompressRgb(rgbScale,compression)
+		height = len(grayScale)
+		width = len(grayScale[0])
+	}
+	var res Ascii_t 
+	res.AsciiChars = make([][]rune,height)
+	res.RgbColors = make([][]Rgb,height)
+	for i := 0; i!= height; i++{
+		res.AsciiChars[i] = make([]rune,width)
+		res.RgbColors[i] = make([]Rgb,width)
+	}
+	for y := 0; y < height; y++ {
+		for x := 0; x < width; x++ {
 			char := PixelToChar(grayScale[y][x])
 			res.AsciiChars[y][x] = char
 		}
 	}
+	res.RgbColors = rgbScale
 	return res
 }
 
