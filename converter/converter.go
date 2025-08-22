@@ -16,8 +16,21 @@ import (
 	"golang.org/x/image/font"
 	"golang.org/x/image/font/basicfont"
 	"golang.org/x/image/math/fixed"
-)
 
+	vidio "github.com/AlexEidt/Vidio"
+)
+func GetFramesFromMp4(videoPath string) []image.Image{
+	video,_ := vidio.NewVideo(videoPath)
+	img := image.NewRGBA(image.Rect(0,0,video.Width(),video.Height()))
+	result := make([]image.Image,video.Frames())
+	video.SetFrameBuffer(img.Pix)
+	frame := 0
+	for video.Read() {
+		result[frame] = img
+		frame++
+	}
+	return result
+}
 func RGBToGraycale(r uint32, g uint32,b uint32) float32{
 	result := float32(r)*0.299 + float32(g)*0.587 + float32(b)*0.114
 	return result
@@ -32,16 +45,11 @@ func PixelToChar(gray uint8) rune{
 	return rune(revRamp[index])
 
 }
-
-func ImageToAscii(img image.Image,height int,width int,aspectRatio float64) Ascii_t {
-	var res Ascii_t 
-	res.AsciiChars = make([][]rune,height)
-	res.RgbColors = make([][]Rgb,height)
+func ImageToGrayScale(img image.Image, height int,width int,aspectRatio float64) [][]uint8{
+	grayScale := make([][]uint8,height)	
 	for i := 0; i!= height; i++{
-		res.AsciiChars[i] = make([]rune,width)
-		res.RgbColors[i] = make([]Rgb,width)
+		grayScale[i] = make([]uint8,width)
 	}
-
 	for y := 0; y < height; y++ {
 		for x := 0; x < width; x++ {
 			srcY := int(float64(y) / aspectRatio)
@@ -50,13 +58,35 @@ func ImageToAscii(img image.Image,height int,width int,aspectRatio float64) Asci
 			g8 := uint8(g >> 8)
 			b8 := uint8(b >> 8)
 			
-			gray := uint8(RGBToGraycale(uint32(r8), uint32(g8), uint32(b8)))
+			grayScale[y][x] = uint8(RGBToGraycale(uint32(r8), uint32(g8), uint32(b8)))
+		}
+	}
+	return grayScale
+	
+}
+func ImageToAscii(img image.Image,height int,width int,aspectRatio float64) Ascii_t {
+	var res Ascii_t 
+	res.AsciiChars = make([][]rune,height)
+	res.RgbColors = make([][]Rgb,height)
+	for i := 0; i!= height; i++{
+		res.AsciiChars[i] = make([]rune,width)
+		res.RgbColors[i] = make([]Rgb,width)
+	}
+	grayScale := ImageToGrayScale(img,height,width,aspectRatio)
+	for y := 0; y < height; y++ {
+		for x := 0; x < width; x++ {
+			srcY := int(float64(y) / aspectRatio)
+			r, g, b, _ := img.At(x, srcY).RGBA()
+			r8 := uint8(r >> 8)
+			g8 := uint8(g >> 8)
+			b8 := uint8(b >> 8)
+			
 			res.RgbColors[y][x] = Rgb{
 				uint32(r8),
 				uint32(g8), 
 				uint32(b8),
 			}
-			char := PixelToChar(gray)
+			char := PixelToChar(grayScale[y][x])
 			res.AsciiChars[y][x] = char
 		}
 	}
