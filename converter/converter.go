@@ -4,18 +4,16 @@ import (
 	"fmt"
 	"image"
 	"image/color"
-	"time"
-
-	//"image/draw"
 	"image/gif"
+	"image/jpeg"
 	_ "image/jpeg"
 	"image/png"
 	_ "image/png"
-
-	"sync"
-
 	"os"
+	"sync"
+	"time"
 
+	"github.com/AlexEidt/Vidio"
 	"golang.org/x/image/draw"
 	"golang.org/x/image/font"
 	"golang.org/x/image/font/basicfont"
@@ -34,10 +32,12 @@ func ReverseRamp(ramp string) string {
 	}
 	return string(runes)
 }
+
 func RGBToGraycale(r uint32, g uint32,b uint32) float32{
 	result :=(float32(r)*0.299 + float32(g)*0.587 + float32(b)*0.114)
 	return result
 }
+
 func PixelToChar(gray uint8) rune{
 	
 	scale := float32(gray ) /255
@@ -46,6 +46,26 @@ func PixelToChar(gray uint8) rune{
 	return rune( RevRamp[index] )
 
 }
+func ReadFirstFrame() image.Image {
+	fmt.Println("hello")
+	video, err := vidio.NewCamera(0)
+	if err != nil {
+		panic("Could not open camera")
+	}
+	defer video.Close()
+	video.Read()
+	fmt.Println("hello1")
+	img := image.NewRGBA(image.Rect(0, 0, video.Width(), video.Height()))
+	video.SetFrameBuffer(img.Pix)
+
+	fmt.Println("hello2")
+	frame := 0
+	f, _ := os.Create(fmt.Sprintf("%d.jpg", frame))
+	jpeg.Encode(f, img, nil)
+	f.Close()
+	return img
+}
+
 func ImageToGrayScale(img image.Image,opts Options,prevFrame image.Image) [][]uint8{
 	height := img.Bounds().Dy()
 	width := img.Bounds().Dx()
@@ -83,6 +103,7 @@ func ImageToGrayScale(img image.Image,opts Options,prevFrame image.Image) [][]ui
 	return grayScale
 	
 }
+
 func CompressGrayScale(gray [][]uint8,opts Options) [][]uint8{
 	
 	if opts.Compression == 0 {
@@ -262,7 +283,6 @@ func PrintAsciiImage(ascii Ascii_t, opts Options) {
 }
 
 func PrintAsciiGif(asciis []Ascii_t, opts Options,delays []int) {
-	
 		for {
 			for i,ascii := range asciis {
 				PrintAsciiImage(ascii,opts)
