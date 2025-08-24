@@ -18,10 +18,21 @@ import (
 func main(){
 	var chosenFile string = ""
 	var chosenOption int = 0
-	converter.ReadFirstFrame()
-	fmt.Print("Convert image or gif? (1 for image, 2 for gif) : ");
-	fmt.Scanf("%d",&chosenOption)
+	options := converter.Options{
+		UseColor: true,
+		UseAlpha: true,
+		AspectRatio: 0.5,
+		ClearScreen: true,
+		BlendPrev: true,
+		Parallel: true,
+		Compression: 2,
+	}
 	converter.RevRamp = converter.SimpleRamp
+	fmt.Print("Convert image, gif, camera? (1 for image, 2 for gif,3 for camera): ");
+	fmt.Scanf("%d",&chosenOption)
+	if chosenOption == 3 {
+		converter.AsciiCamera(options)
+	}
 	fmt.Print("choose the file you wish to convert : ");
 	fmt.Scanf("%s",&chosenFile)
 	file,err := os.Open(chosenFile)
@@ -29,18 +40,6 @@ func main(){
 		panic("Could not open file")
 	}
 	defer file.Close()
-	options := converter.Options{
-		UseColor: true,
-		UseAlpha: true,
-		AspectRatio: 0.5,
-		Compression: 1,
-		ClearScreen: true,
-		BlendPrev: true,
-		FitTerminal: true,
-	
-		Parallel: true,
-		Invert: true,
-	}
 	if options.Invert {
 		converter.RevRamp = converter.ReverseRamp(converter.RevRamp)
 	}
@@ -108,10 +107,11 @@ func main(){
 	 		}
 	 	}
 	 	fmt.Println(time.Now())
-	 	//converter.AsciiToGifSlow(gifImages,h,w,g.Delay,g.Disposal,true)
 	 	converter.AsciiToGifSlow(gifImages,options,g.Delay,g.Disposal,palets)
 	 	converter.PrintAsciiGif(gifImages,options,g.Delay)
 	 	fmt.Println(time.Now())
-	 }
+	} 
+
+	 
 
 }

@@ -5,7 +5,6 @@ import (
 	"image"
 	"image/color"
 	"image/gif"
-	"image/jpeg"
 	_ "image/jpeg"
 	"image/png"
 	_ "image/png"
@@ -46,24 +45,32 @@ func PixelToChar(gray uint8) rune{
 	return rune( RevRamp[index] )
 
 }
-func ReadFirstFrame() image.Image {
-	fmt.Println("hello")
+func AsciiCamera(opts Options)  {
 	video, err := vidio.NewCamera(0)
 	if err != nil {
 		panic("Could not open camera")
 	}
 	defer video.Close()
-	video.Read()
-	fmt.Println("hello1")
 	img := image.NewRGBA(image.Rect(0, 0, video.Width(), video.Height()))
 	video.SetFrameBuffer(img.Pix)
-
-	fmt.Println("hello2")
+	if opts.Height == 0 {
+		opts.Height = img.Bounds().Dy()
+	}
+	if opts.Width == 0 {
+		opts.Width = img.Bounds().Dx()
+	}
+	opts.Height = opts.Height / opts.Compression
+	opts.Width = opts.Width / opts.Compression
 	frame := 0
-	f, _ := os.Create(fmt.Sprintf("%d.jpg", frame))
-	jpeg.Encode(f, img, nil)
-	f.Close()
-	return img
+	for video.Read(){
+		if frame %3 ==0{
+			img := ResizeImg(img,opts)
+			ascii := ImageToAscii(img,opts,nil)
+			PrintAsciiImage(ascii,opts)
+			time.Sleep(10 * time.Millisecond)
+		}
+		frame++
+	}
 }
 
 func ImageToGrayScale(img image.Image,opts Options,prevFrame image.Image) [][]uint8{
@@ -263,8 +270,10 @@ func ImageToAscii(img image.Image,opts Options,prevFrame image.Image) Ascii_t {
 }
 
 func PrintAsciiImage(ascii Ascii_t, opts Options) {
+	fmt.Print("\033[?25l")
+    defer fmt.Print("\033[?25h")
 	if opts.ClearScreen {
-		fmt.Print("\033c")
+		fmt.Print("\033[2J\033[H")
 	}
 	for y := 0; y < len(ascii.AsciiChars); y++ {
 		for x := 0; x < len(ascii.AsciiChars[y]); x++ {
@@ -280,6 +289,7 @@ func PrintAsciiImage(ascii Ascii_t, opts Options) {
 		}
 		fmt.Print("\x1b[0m\n") 
 	}
+	os.Stdout.Sync()
 }
 
 func PrintAsciiGif(asciis []Ascii_t, opts Options,delays []int) {
@@ -360,7 +370,8 @@ func ResizePaletted(img *image.Paletted,opts Options) *image.Paletted {
 			if err != nil {
 				panic("Could not get terminal size")
 			}
-			opts.Height = height * 2 - 1
+			charAspect := 2.0
+			opts.Height = int(float64(height) * charAspect) -2
 			opts.Width = width
 		}
 	}
@@ -393,8 +404,9 @@ func ResizeImg(img image.Image,opts Options) image.Image {
 			if err != nil {
 				panic("Could not get terminal size")
 			}
-			opts.Height = height * 2 - 1
-			opts.Width = width
+			charAspect := 2.0
+			opts.Height = int(float64(height) * charAspect) -2
+			opts.Width = width 
 		}
 	}
 	dst := image.NewRGBA(image.Rect(0,0,opts.Width,opts.Height))
