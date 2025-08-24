@@ -3,31 +3,114 @@ package main
 import (
 	"fmt"
 	"image"
+	"image/color"
+	"image/gif"
+	_ "image/gif"
 	_ "image/jpeg"
 	_ "image/png"
 	"os"
+
+	"time"
 
 	"github.com/Apollo478/ascii-converter/converter"
 )
 
 func main(){
-	file,err := os.Open("images/me2.jpg")
+	var chosenFile string = ""
+	var chosenOption int = 0
+	fmt.Print("Convert image or gif? (1 for image, 2 for gif) : ");
+	fmt.Scanf("%d",&chosenOption)
+	converter.RevRamp = converter.SimpleRamp
+	fmt.Print("choose the file you wish to convert : ");
+	fmt.Scanf("%s",&chosenFile)
+	file,err := os.Open(chosenFile)
 	if err != nil {
 		panic("Could not open file")
 	}
 	defer file.Close()
-	img,_,err := image.Decode(file)
-	if err != nil {
-		panic("Could not decode image")
-	}
-	bounds := img.Bounds()
-	width  := bounds.Dx()
-	height  := bounds.Dy()
-	aspectRatio := 0.5
-	height = int(float32(height) * float32(aspectRatio))
-	fmt.Println(height,width)
-	ascii := converter.ImageToAscii(img,height,width,aspectRatio)
-	converter.PrintAsciiImage(ascii,height,width)
-	converter.AsciiToImage(ascii,height,width)
+	options := converter.Options{
+		UseColor: true,
+		UseAlpha: true,
+		AspectRatio: 0.5,
+		Compression: 1,
+		ClearScreen: true,
+		BlendPrev: true,
+		FitTerminal: true,
 	
+		Parallel: true,
+		Invert: true,
+	}
+	if options.Invert {
+		converter.RevRamp = converter.ReverseRamp(converter.RevRamp)
+	}
+	if chosenOption == 1 {
+		
+		img,_,err := image.Decode(file)
+		if err != nil {
+			panic("Could not decode image")
+		}
+		if options.Height == 0 {
+			options.Height = img.Bounds().Dy()
+		}
+		if options.Width == 0 {
+			options.Width = img.Bounds().Dx()
+		}
+		fmt.Print("choose your compression factor :")
+		fmt.Scanf("%d",&options.Compression)
+		options.Height = options.Height / options.Compression
+		options.Width = options.Width / options.Compression
+		img = converter.ResizeImg(img,options)
+
+		fmt.Println("conversion")
+		ascii := converter.ImageToAscii(img,options,nil)
+		converter.PrintAsciiImage(ascii,options)
+		fmt.Println("done conversion")
+		converter.AsciiToImage(ascii,options)
+		fmt.Println("imaged")
+	} else if chosenOption == 2 {
+
+		g,err := gif.DecodeAll(file)
+		if err != nil {
+			panic(" Could not decode gif \n" + err.Error() )
+		}
+		
+		palets  := make([]color.Palette,len(g.Image))
+
+		fmt.Print("choose your compression factor :")
+		fmt.Scanf("%d",&options.Compression)
+		gifImages := make([]converter.Ascii_t, len(g.Image))
+		fmt.Println(len(gifImages))
+		fmt.Println(time.Now())
+		if options.Height == 0 {
+			options.Height = g.Config.Height
+		}
+		if options.Width == 0 {
+			options.Width = g.Config.Width
+		}
+		options.Height = options.Height / options.Compression
+		options.Width = options.Width / options.Compression
+		for i, img := range g.Image {
+			var frameToPass image.Image
+			if i == 0 {
+				frameToPass = nil 
+			} else if g.Disposal[i-1] == gif.DisposalNone || g.Disposal[i-1] == gif.DisposalPrevious {
+				frameToPass = g.Image[i-1]
+			}
+			 img = converter.ResizePaletted(img,options)
+			 palets[i] = img.Palette
+
+			var ascii converter.Ascii_t
+				ascii = converter.ImageToAscii(img, options,frameToPass)
+			
+			if len(ascii.AsciiChars)!= 0{
+				gifImages[i] = ascii
+			}
+		}
+		fmt.Println(time.Now())
+		//converter.AsciiToGifSlow(gifImages,h,w,g.Delay,g.Disposal,true)
+		converter.AsciiToGifSlow(gifImages,options,g.Delay,g.Disposal,palets)
+		converter.PrintAsciiGif(gifImages,options,g.Delay)
+		fmt.Println(time.Now())
+	}
+
 }
