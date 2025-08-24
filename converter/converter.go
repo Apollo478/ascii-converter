@@ -26,17 +26,24 @@ var RevRamp string = ""
 const (
 	SimpleRamp = ".-+*=%@#&WMN$"
 	FullRamp = ".'`^\",:;Il!i><~+_-?][}{1)(|\\/tfjrxnuvczXYUJCLQ0OZmwqpdbkhao*#MW&8%B@$"
-)
+)                                
+func ReverseRamp(ramp string) string {
+	runes := []rune(ramp)
+	for i, j := 0, len(runes)-1; i < j; i, j = i+1, j-1 {
+		runes[i], runes[j] = runes[j], runes[i]
+	}
+	return string(runes)
+}
 func RGBToGraycale(r uint32, g uint32,b uint32) float32{
 	result :=(float32(r)*0.299 + float32(g)*0.587 + float32(b)*0.114)
 	return result
 }
 func PixelToChar(gray uint8) rune{
 	
-	scale := float32(gray) /255
+	scale := float32(gray ) /255
 
 	index := int(scale * float32(len(RevRamp)-1))
-	return rune(RevRamp[index])
+	return rune( RevRamp[index] )
 
 }
 func ImageToGrayScale(img image.Image,opts Options,prevFrame image.Image) [][]uint8{
@@ -87,7 +94,6 @@ func CompressGrayScale(gray [][]uint8,opts Options) [][]uint8{
 	}
 	height := len(gray) / opts.Compression
 	width := len(gray[0]) / opts.Compression
-	fmt.Println(height , width)
 	grayScale := make([][]uint8,height)	
 	for i := 0; i!= height; i++{
 		grayScale[i] = make([]uint8,width)
@@ -387,21 +393,68 @@ func AsciiToGifSlow(imgs []Ascii_t,opts Options,delays []int,disposal []byte,pal
 	}
 	defer file.Close()
 	frames := make([]*image.Paletted,len(imgs))
+	PrintProgress(0,len(imgs))
 	var wg sync.WaitGroup
+	framesDone := 0
 	for i,chars := range imgs {
-		wg.Add(1)
-		go func(i int ,chars Ascii_t){
-			defer wg.Done()
+		if opts.Parallel {
+			wg.Add(1)
+			go func(i int ,chars Ascii_t){
+				defer wg.Done()
+				frames[i] = AsciiToPalleted(chars,opts,palets[i])
+				if opts.ShowProgress {
+					PrintProgress(framesDone,len(imgs))
+					framesDone++
+				}
+			}(i,chars)
+		} else {
 			frames[i] = AsciiToPalleted(chars,opts,palets[i])
-			fmt.Print(i)
-		}(i,chars)
+			if opts.ShowProgress {
+				PrintProgress(framesDone,len(imgs))
+				framesDone++
+			}
+		}
 		anim.Image = frames
 	}
-	wg.Wait()
+	if opts.Parallel {
+		wg.Wait()
+	}
 	anim.Delay = append(anim.Delay, delays...)
 	anim.Disposal = append(anim.Disposal, disposal...)
 	gif.EncodeAll(file,&anim)
 }
+
+func PrintProgress(curr int,max int) {
+	
+fd := int(os.Stdout.Fd())
+	width := 0 // fallback
+	if term.IsTerminal(fd) {
+		w, _, err := term.GetSize(fd)
+		if err == nil {
+			width = w
+		}
+	}
+
+	barWidth := width - 10 
+	progress := float64(curr) / float64(max)
+	filled := int(progress * float64(barWidth))
+
+	fmt.Print("\r")
+
+	fmt.Print("[")
+	for i := 0; i < barWidth; i++ {
+		if i < filled {
+			fmt.Print("█")
+		} else {
+			fmt.Print(" ")
+		}
+	}
+	fmt.Printf("] %3d%%", int(progress*100))
+
+	if curr == max {
+		fmt.Println()
+	}}
+
 func AsciiToPalleted(chars Ascii_t,opts Options,pale []color.Color) *image.Paletted {
 	
 	var height int = 0
