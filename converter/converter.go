@@ -9,6 +9,8 @@ import (
 	"image/png"
 	_ "image/png"
 	"os"
+	// "strconv"
+	// "strings"
 	"sync"
 	"time"
 
@@ -20,6 +22,9 @@ import (
 	"golang.org/x/term"
 )
 var RevRamp string = ""
+var asciiBuffer []byte
+var prevChars [][]rune
+var prevColors [][]Rgb
 const (
 	SimpleRamp = ".-+*=%@#&WMN$"
 	FullRamp = ".'`^\",:;Il!i><~+_-?][}{1)(|\\/tfjrxnuvczXYUJCLQ0OZmwqpdbkhao*#MW&8%B@$"
@@ -61,15 +66,11 @@ func AsciiCamera(opts Options)  {
 	}
 	opts.Height = opts.Height / opts.Compression
 	opts.Width = opts.Width / opts.Compression
-	frame := 0
 	for video.Read(){
-		if frame %3 ==0{
 			img := ResizeImg(img,opts)
 			ascii := ImageToAscii(img,opts,nil)
 			PrintAsciiImage(ascii,opts)
-			time.Sleep(10 * time.Millisecond)
-		}
-		frame++
+			time.Sleep(1 * time.Millisecond)
 	}
 }
 
@@ -268,28 +269,128 @@ func ImageToAscii(img image.Image,opts Options,prevFrame image.Image) Ascii_t {
 	res.RgbColors = rgbScale
 	return res
 }
+func intToBytes(i int) []byte {
+	if i == 0 {
+		return []byte{'0'}
+	}
+	var buf [20]byte // values 0-255
+	n := len(buf)
+	for i > 0 {
+		n--
+		buf[n] = byte('0' + i%10)
+		i /= 10
+	}
+	return buf[n:]
+}
 
 func PrintAsciiImage(ascii Ascii_t, opts Options) {
-	fmt.Print("\033[?25l")
-    defer fmt.Print("\033[?25h")
-	if opts.ClearScreen {
-		fmt.Print("\033[2J\033[H")
+os.Stdout.WriteString("\033[?25l")
+	defer os.Stdout.WriteString("\033[?25h")
+
+	if len(prevChars) != len(ascii.AsciiChars) || len(prevChars[0]) != len(ascii.AsciiChars[0]) {
+		prevChars = make([][]rune, len(ascii.AsciiChars))
+		prevColors = make([][]Rgb, len(ascii.RgbColors))
+		for y := range ascii.AsciiChars {
+			prevChars[y] = make([]rune, len(ascii.AsciiChars[y]))
+			prevColors[y] = make([]Rgb, len(ascii.RgbColors[y]))
+		}
+		if opts.ClearScreen {
+			os.Stdout.WriteString("\033[2J\033[H") // clear fully once
+		}
 	}
+
+	// Reset buffer for this frame
+	asciiBuffer = asciiBuffer[:0]
+
+	// Traverse frame
 	for y := 0; y < len(ascii.AsciiChars); y++ {
 		for x := 0; x < len(ascii.AsciiChars[y]); x++ {
 			char := ascii.AsciiChars[y][x]
 			color := ascii.RgbColors[y][x]
 
+			// Skip if identical to previous frame
+			if prevChars[y][x] == char &&
+				(!opts.UseColor || (prevColors[y][x] == color)) {
+				continue
+			}
+
+			// Move cursor to position (1-based coords for ANSI)
+			asciiBuffer = append(asciiBuffer, "\033["...)
+			asciiBuffer = append(asciiBuffer, intToBytes(y+1)...)
+			asciiBuffer = append(asciiBuffer, ';')
+			asciiBuffer = append(asciiBuffer, intToBytes(x+1)...)
+			asciiBuffer = append(asciiBuffer, 'H')
+
+			// Apply color if enabled
 			if opts.UseColor {
-				fmt.Printf("\x1b[38;2;%d;%d;%dm%c",
-					color.R, color.G, color.B, char)
-			} else {
-				fmt.Printf("%c", char)
+				asciiBuffer = append(asciiBuffer, "\x1b[38;2;"...)
+				asciiBuffer = append(asciiBuffer, intToBytes(int(color.R))...)
+				asciiBuffer = append(asciiBuffer, ';')
+				asciiBuffer = append(asciiBuffer, intToBytes(int(color.G))...)
+				asciiBuffer = append(asciiBuffer, ';')
+				asciiBuffer = append(asciiBuffer, intToBytes(int(color.B))...)
+				asciiBuffer = append(asciiBuffer, 'm')
+			}
+
+			// Write char
+			asciiBuffer = append(asciiBuffer, byte(char))
+
+			// Reset color if used
+			if opts.UseColor {
+				asciiBuffer = append(asciiBuffer, "\x1b[0m"...)
+			}
+
+			// Update prev frame cache
+			prevChars[y][x] = char
+			if opts.UseColor {
+				prevColors[y][x] = color
 			}
 		}
-		fmt.Print("\x1b[0m\n") 
 	}
-	os.Stdout.Sync()
+
+	// Write all changes in one go
+	if len(asciiBuffer) > 0 {
+		os.Stdout.Write(asciiBuffer)
+		os.Stdout.Sync()
+	}
+	// os.Stdout.WriteString("\033[?25l")
+	// defer os.Stdout.WriteString("\033[?25h")
+	//
+	// if opts.ClearScreen {
+	// 	os.Stdout.WriteString("\033[2J\033[H")
+	// }
+	//
+	// estimated := len(ascii.AsciiChars) * (len(ascii.AsciiChars[0]) * 25) 
+	// if cap(asciiBuffer) < estimated {
+	// 	asciiBuffer = make([]byte, 0, estimated)
+	// }
+	// asciiBuffer = asciiBuffer[:0]
+	// for y := 0; y < len(ascii.AsciiChars); y++ {
+	// 	for x := 0; x < len(ascii.AsciiChars[y]); x++ {
+	// 		char := ascii.AsciiChars[y][x]
+	//
+	// 		if opts.UseColor {
+	// 			color := ascii.RgbColors[y][x]
+	// 			asciiBuffer = append(asciiBuffer, "\x1b[38;2;"...)
+	// 			asciiBuffer = append(asciiBuffer, intToBytes(color.R)...)
+	// 			asciiBuffer = append(asciiBuffer, ';')
+	// 			asciiBuffer = append(asciiBuffer, intToBytes(color.G)...)
+	// 			asciiBuffer = append(asciiBuffer, ';')
+	// 			asciiBuffer = append(asciiBuffer, intToBytes(color.B)...)
+	// 			asciiBuffer = append(asciiBuffer, 'm', byte(char))
+	// 		} else {
+	// 			asciiBuffer = append(asciiBuffer, byte(char))
+	// 		}
+	// 	}
+	// 	if opts.UseColor {
+	// 		asciiBuffer = append(asciiBuffer, "\x1b[0m"...)
+	// 	}
+	// 	asciiBuffer = append(asciiBuffer, '\n')
+	// }
+	//
+	// // single write
+	// os.Stdout.Write(asciiBuffer)
+	// os.Stdout.Sync()
 }
 
 func PrintAsciiGif(asciis []Ascii_t, opts Options,delays []int) {

@@ -25,7 +25,8 @@ func main(){
 		ClearScreen: true,
 		BlendPrev: true,
 		Parallel: true,
-		Compression: 2,
+		Compression: 1,
+		FitTerminal: true,
 	}
 	converter.RevRamp = converter.SimpleRamp
 	fmt.Print("Convert image, gif, camera? (1 for image, 2 for gif,3 for camera): ");
@@ -107,8 +108,10 @@ func main(){
 	 		}
 	 	}
 	 	fmt.Println(time.Now())
-	 	converter.AsciiToGifSlow(gifImages,options,g.Delay,g.Disposal,palets)
-	 	converter.PrintAsciiGif(gifImages,options,g.Delay)
+			go func(){
+				converter.AsciiToGifSlow(gifImages,options,g.Delay,g.Disposal,palets)
+			}()
+				converter.PrintAsciiGif(gifImages,options,g.Delay)
 	 	fmt.Println(time.Now())
 	} 
 
