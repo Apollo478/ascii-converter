@@ -14,7 +14,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/AlexEidt/Vidio"
 	"golang.org/x/image/draw"
 	"golang.org/x/image/font"
 	"golang.org/x/image/font/basicfont"
@@ -50,30 +49,25 @@ func PixelToChar(gray uint8) rune{
 	return rune( RevRamp[index] )
 
 }
-func AsciiCamera(opts Options)  {
-	video, err := vidio.NewCamera(0)
-	if err != nil {
-		panic("Could not open camera")
+func CameraToAscii(opts Options) {
+	
+	width,height := 0,0
+	if opts.FitTerminal {
+		width,height = GetTermBounds()
+		height = height * 2 -1
 	}
-	defer video.Close()
-	img := image.NewRGBA(image.Rect(0, 0, video.Width(), video.Height()))
-	video.SetFrameBuffer(img.Pix)
-	if opts.Height == 0 {
-		opts.Height = img.Bounds().Dy()
-	}
-	if opts.Width == 0 {
-		opts.Width = img.Bounds().Dx()
-	}
+	stdout := ReadFrames(opts)
+	opts.Height = height
+	opts.Width = width
 	opts.Height = opts.Height / opts.Compression
 	opts.Width = opts.Width / opts.Compression
-	for video.Read(){
-			img := ResizeImg(img,opts)
-			ascii := ImageToAscii(img,opts,nil)
-			PrintAsciiImage(ascii,opts)
-			time.Sleep(1 * time.Millisecond)
+	camReader := NewFrameReader(stdout,opts.Width,opts.Height)
+	for frame := range camReader.ReadNextFrame()  {
+		ascii := RgbBufferToAscii(frame,opts)
+		PrintAsciiImage(ascii,opts)
+		// time.Sleep(1 * time.Millisecond)
 	}
 }
-
 func ImageToGrayScale(img image.Image,opts Options,prevFrame image.Image) [][]uint8{
 	height := img.Bounds().Dy()
 	width := img.Bounds().Dx()
@@ -238,6 +232,65 @@ func CompressRgb(rgb [][]Rgb,opts Options) [][]Rgb {
 	return rgbScale
 }
 
+func RgbBufferToAscii(buffer []byte, opts Options) Ascii_t {
+	rawWidth := opts.Width
+	rawHeight := opts.Height
+
+	displayWidth := rawWidth
+	displayHeight := int(float64(rawHeight) * opts.AspectRatio)
+
+	grayScale := make([][]uint8, displayHeight)
+	rgb := make([][]Rgb, displayHeight)
+	for y := 0; y < displayHeight; y++ {
+		grayScale[y] = make([]uint8, displayWidth)
+		rgb[y] = make([]Rgb, displayWidth)
+	}
+
+	i := 0
+	for y := 0; y < rawHeight; y++ {
+		for x := 0; x < rawWidth; x++ {
+			r := buffer[i]
+			g := buffer[i+1]
+			b := buffer[i+2]
+
+			// Map raw y → scaled y
+			displayY := int(float64(y) * opts.AspectRatio)
+			if displayY >= displayHeight {
+				displayY = displayHeight - 1
+			}
+
+			gray := uint8(RGBToGraycale(uint32(r), uint32(g), uint32(b)))
+			grayScale[displayY][x] = gray
+			rgb[displayY][x] = Rgb{uint32(r), uint32(g), uint32(b), 255}
+
+			i += 3
+		}
+	}
+
+	// Compression step
+	if opts.Compression != 0 {
+		grayScale = CompressGrayScale(grayScale, opts)
+		rgb = CompressRgb(rgb, opts)
+		displayHeight = len(grayScale)
+		displayWidth = len(grayScale[0])
+	}
+
+	// Build Ascii_t
+	res := Ascii_t{
+		AsciiChars: make([][]rune, displayHeight),
+		RgbColors:  make([][]Rgb, displayHeight),
+	}
+	for y := 0; y < displayHeight; y++ {
+		res.AsciiChars[y] = make([]rune, displayWidth)
+		res.RgbColors[y] = make([]Rgb, displayWidth)
+		for x := 0; x < displayWidth; x++ {
+			res.AsciiChars[y][x] = PixelToChar(grayScale[y][x])
+			res.RgbColors[y][x] = rgb[y][x]
+		}
+	}
+	return res
+}
+
 func ImageToAscii(img image.Image,opts Options,prevFrame image.Image) Ascii_t {
 	height := img.Bounds().Dy()
 	width := img.Bounds().Dx()
@@ -284,7 +337,7 @@ func intToBytes(i int) []byte {
 }
 
 func PrintAsciiImage(ascii Ascii_t, opts Options) {
-os.Stdout.WriteString("\033[?25l")
+	os.Stdout.WriteString("\033[?25l")
 	defer os.Stdout.WriteString("\033[?25h")
 
 	if len(prevChars) != len(ascii.AsciiChars) || len(prevChars[0]) != len(ascii.AsciiChars[0]) {
@@ -299,29 +352,24 @@ os.Stdout.WriteString("\033[?25l")
 		}
 	}
 
-	// Reset buffer for this frame
 	asciiBuffer = asciiBuffer[:0]
 
-	// Traverse frame
 	for y := 0; y < len(ascii.AsciiChars); y++ {
 		for x := 0; x < len(ascii.AsciiChars[y]); x++ {
 			char := ascii.AsciiChars[y][x]
 			color := ascii.RgbColors[y][x]
 
-			// Skip if identical to previous frame
 			if prevChars[y][x] == char &&
 				(!opts.UseColor || (prevColors[y][x] == color)) {
 				continue
 			}
 
-			// Move cursor to position (1-based coords for ANSI)
 			asciiBuffer = append(asciiBuffer, "\033["...)
 			asciiBuffer = append(asciiBuffer, intToBytes(y+1)...)
 			asciiBuffer = append(asciiBuffer, ';')
 			asciiBuffer = append(asciiBuffer, intToBytes(x+1)...)
 			asciiBuffer = append(asciiBuffer, 'H')
 
-			// Apply color if enabled
 			if opts.UseColor {
 				asciiBuffer = append(asciiBuffer, "\x1b[38;2;"...)
 				asciiBuffer = append(asciiBuffer, intToBytes(int(color.R))...)
@@ -332,15 +380,12 @@ os.Stdout.WriteString("\033[?25l")
 				asciiBuffer = append(asciiBuffer, 'm')
 			}
 
-			// Write char
 			asciiBuffer = append(asciiBuffer, byte(char))
 
-			// Reset color if used
 			if opts.UseColor {
 				asciiBuffer = append(asciiBuffer, "\x1b[0m"...)
 			}
 
-			// Update prev frame cache
 			prevChars[y][x] = char
 			if opts.UseColor {
 				prevColors[y][x] = color
@@ -348,49 +393,10 @@ os.Stdout.WriteString("\033[?25l")
 		}
 	}
 
-	// Write all changes in one go
 	if len(asciiBuffer) > 0 {
 		os.Stdout.Write(asciiBuffer)
 		os.Stdout.Sync()
 	}
-	// os.Stdout.WriteString("\033[?25l")
-	// defer os.Stdout.WriteString("\033[?25h")
-	//
-	// if opts.ClearScreen {
-	// 	os.Stdout.WriteString("\033[2J\033[H")
-	// }
-	//
-	// estimated := len(ascii.AsciiChars) * (len(ascii.AsciiChars[0]) * 25) 
-	// if cap(asciiBuffer) < estimated {
-	// 	asciiBuffer = make([]byte, 0, estimated)
-	// }
-	// asciiBuffer = asciiBuffer[:0]
-	// for y := 0; y < len(ascii.AsciiChars); y++ {
-	// 	for x := 0; x < len(ascii.AsciiChars[y]); x++ {
-	// 		char := ascii.AsciiChars[y][x]
-	//
-	// 		if opts.UseColor {
-	// 			color := ascii.RgbColors[y][x]
-	// 			asciiBuffer = append(asciiBuffer, "\x1b[38;2;"...)
-	// 			asciiBuffer = append(asciiBuffer, intToBytes(color.R)...)
-	// 			asciiBuffer = append(asciiBuffer, ';')
-	// 			asciiBuffer = append(asciiBuffer, intToBytes(color.G)...)
-	// 			asciiBuffer = append(asciiBuffer, ';')
-	// 			asciiBuffer = append(asciiBuffer, intToBytes(color.B)...)
-	// 			asciiBuffer = append(asciiBuffer, 'm', byte(char))
-	// 		} else {
-	// 			asciiBuffer = append(asciiBuffer, byte(char))
-	// 		}
-	// 	}
-	// 	if opts.UseColor {
-	// 		asciiBuffer = append(asciiBuffer, "\x1b[0m"...)
-	// 	}
-	// 	asciiBuffer = append(asciiBuffer, '\n')
-	// }
-	//
-	// // single write
-	// os.Stdout.Write(asciiBuffer)
-	// os.Stdout.Sync()
 }
 
 func PrintAsciiGif(asciis []Ascii_t, opts Options,delays []int) {
@@ -465,16 +471,10 @@ func webSafePalette() []color.Color {
 
 func ResizePaletted(img *image.Paletted,opts Options) *image.Paletted {
 	if opts.FitTerminal {
-		fd := int(os.Stdout.Fd())
-		if term.IsTerminal(fd) {
-			width, height, err := term.GetSize(fd)	
-			if err != nil {
-				panic("Could not get terminal size")
-			}
+			width, height := GetTermBounds()	
 			charAspect := 2.0
 			opts.Height = int(float64(height) * charAspect) -2
 			opts.Width = width
-		}
 	}
 	if img.Bounds().Dx() == opts.Width && img.Bounds().Dy() == opts.Height {
 		return img
@@ -497,18 +497,23 @@ func ResizePaletted(img *image.Paletted,opts Options) *image.Paletted {
 	}
 	return dst
 }
-func ResizeImg(img image.Image,opts Options) image.Image {
-	if opts.FitTerminal {
+func GetTermBounds() (int,int){
 		fd := int(os.Stdout.Fd())
 		if term.IsTerminal(fd) {
 			width, height, err := term.GetSize(fd)	
 			if err != nil {
 				panic("Could not get terminal size")
 			}
+			return width,height
+		}
+	return 0,0
+}
+func ResizeImg(img image.Image,opts Options) image.Image {
+	if opts.FitTerminal {
+			width, height:= GetTermBounds()
 			charAspect := 2.0
 			opts.Height = int(float64(height) * charAspect) -2
 			opts.Width = width 
-		}
 	}
 	dst := image.NewRGBA(image.Rect(0,0,opts.Width,opts.Height))
 	draw.BiLinear.Scale(dst,dst.Bounds(),img,img.Bounds(),draw.Over,nil)
@@ -629,67 +634,21 @@ func AsciiToPalleted(chars Ascii_t,opts Options,pale []color.Color) *image.Palet
 			draw.FloydSteinberg.Draw(paletted,rgba.Bounds(),rgba,image.Point{})
 			return paletted
 }
-// func AsciiToGifFast(imgs []Ascii_t, height int,width int,delays []int,disposal []byte, isColored bool){
-// 	anim := gif.GIF{
-// 		LoopCount: 0,
-// 	}
-// 	pale := webSafePalette()
-// 	file, err := os.Create("ascii.gif")
-//
-// 	if err != nil {
-// 		panic("Could not create image")
-// 	}
-// 	defer file.Close()
-// 	frames := make([]*image.Paletted,len(imgs))
-// 	var wg sync.WaitGroup
-// 	for i,chars := range imgs {
-// 		wg.Add(1)
-// 		go func(i int ,chars Ascii_t){
-// 			defer wg.Done()
-// 			if len(chars.AsciiChars) != 0{
-// 				height = len(chars.AsciiChars)
-// 				width = len(chars.AsciiChars[0])
-// 			}
-// 			paletted := image.NewPaletted(image.Rect(0,0,width*7,height*13),pale)
-// 			face := basicfont.Face7x13
-// 			drawer := &font.Drawer{
-// 				Dst: paletted,
-// 				Src: image.NewUniform(color.White),
-// 				Face: face,
-// 				Dot: fixed.Point26_6{X : fixed.I(20),Y : fixed.I(50)},
-// 			}
-// 			lineHeight := drawer.Face.Metrics().Height.Ceil()
-// 			charWidth := face.Advance
-// 			for y := 0; y < len(chars.AsciiChars); y++{
-// 				drawer.Dot.X = fixed.I(0)
-// 				drawer.Dot.Y = fixed.I((y+1)* lineHeight)
-//
-// 				for x := 0; x < len(chars.AsciiChars[y]) ; x++{
-// 					if isColored {
-// 						drawer.Src =image.NewUniform(color.RGBA{
-// 							R : uint8(chars.RgbColors[y][x].R  ),
-// 							G : uint8(chars.RgbColors[y][x].G ),
-// 							B : uint8(chars.RgbColors[y][x].B ),
-// 							A: uint8(chars.RgbColors[y][x].A ),
-// 						}) 
-// 					}
-// 					char := chars.AsciiChars[y][x]
-// 					drawer.DrawString(string(char))
-// 					drawer.Dot.X = fixed.I((x+1) * charWidth)
-// 				}
-// 			}
-// 			frames[i] = paletted
-// 			fmt.Println(i)
-// 		}(i,chars)
-// 		anim.Image = frames
-// 	}
-// 	wg.Wait()
-// 	anim.Delay = append(anim.Delay, delays...)
-// 	anim.Disposal = append(anim.Disposal, disposal...)
-// 	gif.EncodeAll(file,&anim)
-// }
 
-
+func RgbToImage(frame []byte,width int, height int) *image.RGBA {
+	img := image.NewRGBA(image.Rect(0,0,width,height))	
+	i := 0
+	for y := 0; y< height; y++ {
+		for x := 0; x< width; x++ {
+			r := frame[i]
+			g := frame[i+1]
+			b := frame[i+2]
+			img.Set(x,y,color.RGBA{r,g,b,255})
+			i = i+3
+		}
+	}
+	return img
+}
 
 
 
