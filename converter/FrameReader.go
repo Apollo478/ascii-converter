@@ -15,17 +15,10 @@ type FrameReader struct {
 	buf []byte
 	cmd *exec.Cmd
 	frames chan []byte
+	active bool
 }
 func NewFrameReader(opts Options) (*FrameReader,error) {
 	width,height := opts.Width,opts.Height
-	// if opts.FitTerminal {
-	// 	width,height = GetTermBounds()
-	// 	height = height * 2 
-	// }
-	// if height == 0 && width == 0 {
-	// 	height = 120
-	// 	width = 160
-	// }
 	cmd := exec.Command("ffmpeg",
 		"-f", "v4l2",           
 		"-i", "/dev/video0",    
@@ -46,6 +39,7 @@ func NewFrameReader(opts Options) (*FrameReader,error) {
 		buf: make([]byte,frameSize),
 		cmd : cmd,
 		frames: frames,
+		active: true,
 	}
 	return &frameReader,nil
 }
@@ -66,7 +60,7 @@ func (fr *FrameReader) Frames(skip int) (<-chan []byte, error) {
 			}
 			tmp := make([]byte, len(fr.buf))
 			copy(tmp,fr.buf)
-			if fr.frames != nil {
+			if fr.frames != nil && fr.active  {
 				fr.frames <- tmp
 			}
 		}
@@ -75,6 +69,7 @@ func (fr *FrameReader) Frames(skip int) (<-chan []byte, error) {
 }
 
 func (fr *FrameReader) Stop() error {
+	fr.active = false
 	close(fr.frames)
 	return fr.cmd.Wait()
 }
