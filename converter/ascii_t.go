@@ -10,7 +10,9 @@ type Rgb struct {
 	B uint32
 	A uint32
 }
-
+func (r Rgb) GetValues()(uint32,uint32,uint32,uint32) {
+	return r.R,r.G,r.B,r.A
+}
 type Options struct {
 	Width int
 	Height int

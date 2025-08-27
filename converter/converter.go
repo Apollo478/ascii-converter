@@ -6,9 +6,10 @@ import (
 	"image/color"
 	"image/gif"
 	_ "image/jpeg"
-	"image/png"
+	// "image/png"
 	_ "image/png"
 	"os"
+
 	// "strconv"
 	// "strings"
 	"sync"
@@ -27,6 +28,7 @@ var prevColors [][]Rgb
 const (
 	SimpleRamp = ".-+*=%@#&WMN$"
 	FullRamp = ".'`^\",:;Il!i><~+_-?][}{1)(|\\/tfjrxnuvczXYUJCLQ0OZmwqpdbkhao*#MW&8%B@$"
+
 )                                
 func ReverseRamp(ramp string) string {
 	runes := []rune(ramp)
@@ -54,18 +56,69 @@ func CameraToAscii(opts Options) {
 	width,height := 0,0
 	if opts.FitTerminal {
 		width,height = GetTermBounds()
-		height = height * 2 -1
+		height = height * 2 
+	} else {
+		height = opts.Height
+		width = opts.Width
+
 	}
-	stdout := ReadFrames(opts)
+	if height == 0 && width == 0 {
+		height = 120
+		width = 160
+	}
 	opts.Height = height
 	opts.Width = width
 	opts.Height = opts.Height / opts.Compression
 	opts.Width = opts.Width / opts.Compression
-	camReader := NewFrameReader(stdout,opts.Width,opts.Height)
-	for frame := range camReader.ReadNextFrame()  {
+	camReader ,err:= NewFrameReader(opts)
+	if err != nil {
+		fmt.Println("Error creating cam frame reader ",err.Error())
+		os.Exit(1)
+	}
+	recorder, err := NewRecorder(opts,"out.mp4")
+	if err != nil {
+		fmt.Println("Error creating recorder ",err.Error())
+		os.Exit(1)
+	}
+	frame ,err:= camReader.Frames(1)
+	if err != nil {
+		fmt.Println("Error reading frames ",err.Error())
+		os.Exit(1)
+	}
+		go func() {
+			var input string
+			for {
+				fmt.Scanln(&input)
+				if input == "q" {
+					fmt.Println("Stopping...")
+					 err := camReader.Stop() 
+					 if err != nil {
+					 	fmt.Println("Could not close camera " + err.Error())
+					 }
+					 err = recorder.Stop()
+					 if err != nil {
+					 	fmt.Println("Could not close recorder " + err.Error())
+					 }
+					return
+				}
+			}
+		}()
+	for frame := range  frame {
 		ascii := RgbBufferToAscii(frame,opts)
-		PrintAsciiImage(ascii,opts)
-		// time.Sleep(1 * time.Millisecond)
+		img := AsciiToImage(ascii,opts)
+		img = ResizeRgba(img,opts)
+
+		fmt.Println(opts.Width,opts.Height)
+		if img != nil {
+			bytes := ImageToRgbBytes(img)
+			err := recorder.WriteFrame(bytes)
+			if err != nil {
+				fmt.Println("Could not record frame " + err.Error())
+				return
+			}
+		}
+
+		// PrintAsciiImage(ascii,opts)
 	}
 }
 func ImageToGrayScale(img image.Image,opts Options,prevFrame image.Image) [][]uint8{
@@ -224,7 +277,10 @@ func CompressRgb(rgb [][]Rgb,opts Options) [][]Rgb {
 				R:	uint32(Rsum / (opts.Compression*opts.Compression)),
 				G:	uint32(Gsum / (opts.Compression*opts.Compression)),
 				B:	uint32(Bsum / (opts.Compression*opts.Compression)),
-				A:	uint32(Asum / (opts.Compression*opts.Compression)),
+				A:255,
+			}
+			if opts.UseAlpha {
+				rgbScale[y][x].A = uint32(Asum / (opts.Compression*opts.Compression))
 			}
 
 		}
@@ -253,7 +309,6 @@ func RgbBufferToAscii(buffer []byte, opts Options) Ascii_t {
 			g := buffer[i+1]
 			b := buffer[i+2]
 
-			// Map raw y → scaled y
 			displayY := int(float64(y) * opts.AspectRatio)
 			if displayY >= displayHeight {
 				displayY = displayHeight - 1
@@ -267,7 +322,6 @@ func RgbBufferToAscii(buffer []byte, opts Options) Ascii_t {
 		}
 	}
 
-	// Compression step
 	if opts.Compression != 0 {
 		grayScale = CompressGrayScale(grayScale, opts)
 		rgb = CompressRgb(rgb, opts)
@@ -275,7 +329,6 @@ func RgbBufferToAscii(buffer []byte, opts Options) Ascii_t {
 		displayWidth = len(grayScale[0])
 	}
 
-	// Build Ascii_t
 	res := Ascii_t{
 		AsciiChars: make([][]rune, displayHeight),
 		RgbColors:  make([][]Rgb, displayHeight),
@@ -408,9 +461,9 @@ func PrintAsciiGif(asciis []Ascii_t, opts Options,delays []int) {
 		}
 }
 
-func AsciiToImage(ascii Ascii_t, opts Options){
+func AsciiToImage(ascii Ascii_t, opts Options) *image.RGBA{
 	if len(ascii.AsciiChars) == 0 {
-		return
+		return nil
 	}
 	height :=len(ascii.AsciiChars) 
 	width := len(ascii.AsciiChars[0])
@@ -444,13 +497,14 @@ func AsciiToImage(ascii Ascii_t, opts Options){
 			drawer.Dot.X = fixed.I((x+1) * charWidth)
 		}
 	}
-	file, err := os.Create("ascii.png")
-
-	if err != nil {
-		panic("Could not create image")
-	}
-	defer file.Close()
-	png.Encode(file,img)
+	// file, err := os.Create("ascii.png")
+	//
+	// if err != nil {
+	// 	panic("Could not create image")
+	// }
+	// defer file.Close()
+	// png.Encode(file,img)
+	return img
 }
 
 func webSafePalette() []color.Color {
@@ -509,6 +563,17 @@ func GetTermBounds() (int,int){
 	return 0,0
 }
 func ResizeImg(img image.Image,opts Options) image.Image {
+	if opts.FitTerminal {
+			width, height:= GetTermBounds()
+			charAspect := 2.0
+			opts.Height = int(float64(height) * charAspect) -2
+			opts.Width = width 
+	}
+	dst := image.NewRGBA(image.Rect(0,0,opts.Width,opts.Height))
+	draw.BiLinear.Scale(dst,dst.Bounds(),img,img.Bounds(),draw.Over,nil)
+	return dst
+}
+func ResizeRgba(img *image.RGBA,opts Options) *image.RGBA {
 	if opts.FitTerminal {
 			width, height:= GetTermBounds()
 			charAspect := 2.0
@@ -650,7 +715,56 @@ func RgbToImage(frame []byte,width int, height int) *image.RGBA {
 	return img
 }
 
+func ImageToRgbBytes(frame image.Image) []byte {
+	bounds := frame.Bounds()
+	height := bounds.Dy()
+	width := bounds.Dx()
 
+	frameSize := width * height * 3
+	buf := make([]byte, frameSize)
+	i := 0
+	for y := 0;y < height ; y ++ {
+		for x := 0;x < width ; x ++ {
+			rgb := frame.At(y,x)
+			r ,g,b,_:= rgb.RGBA()
+			r8 := uint8(r >> 8)
+			g8 := uint8(g >> 8)
+			b8 := uint8(b >> 8)
+			buf[i] = r8
+			buf[i+1] = g8
+			buf[i+2] = b8
+			i = i+3
+		}
+	}
+	return buf
+}
+func AsciiToRgbBytes(frame Ascii_t) []byte {
+	var width,height = 0,0
+	height = len(frame.RgbColors)
+	if height != 0 {
+		width = len(frame.RgbColors[0])
+	}
+	if width == 0 {
+		return nil
+	}
+	frameSize := width * height * 3
+	buf := make([]byte, frameSize)
+	i := 0
+	for y := 0;y < height ; y ++ {
+		for x := 0;x < width ; x ++ {
+			rgb := frame.RgbColors[y][x]
+			r ,g,b,_:= rgb.GetValues()
+			r8 := uint8(r >> 8)
+			g8 := uint8(g >> 8)
+			b8 := uint8(b >> 8)
+			buf[i] = r8
+			buf[i+1] = g8
+			buf[i+2] = b8
+			i = i+3
+		}
+	}
+	return buf
+}
 
 
 

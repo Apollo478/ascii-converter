@@ -26,13 +26,16 @@ func main(){
 		BlendPrev: true,
 		Parallel: true,
 		Compression: 1,
+		Width: 320,
+		Height:240,
 	}
 	converter.RevRamp = converter.SimpleRamp
 	fmt.Print("Convert image, gif, camera? (1 for image, 2 for gif,3 for camera): ");
 	fmt.Scanf("%d",&chosenOption)
 	if chosenOption == 3 {
-		options.FitTerminal = true
+		// options.FitTerminal = true
 		converter.CameraToAscii(options)
+		os.Exit(0)
 	}
 	fmt.Print("choose the file you wish to convert : ");
 	fmt.Scanf("%s",&chosenFile)
