@@ -6,12 +6,10 @@ import (
 	"image/color"
 	"image/gif"
 	_ "image/jpeg"
-	// "image/png"
+	"image/png"
+
 	_ "image/png"
 	"os"
-
-	// "strconv"
-	// "strings"
 	"sync"
 	"time"
 
@@ -51,7 +49,65 @@ func PixelToChar(gray uint8) rune{
 	return rune( RevRamp[index] )
 
 }
-func CameraToAscii(opts Options) {
+
+func SaveAsciiToMp4(frames []Ascii_t, opts Options) error  {
+	recorder, err := NewRecorder(opts,"out.mp4")
+	if err != nil {
+		return  err
+	}
+	for _,ascii := range  frames {
+		PrintAsciiImage(ascii,opts)
+		img := AsciiToImage(ascii,opts,"")
+		img = ResizeRgba(img,opts)
+
+		if img != nil {
+			bytes := ImageToRgbBytes(img)
+			err := recorder.WriteFrame(bytes)
+			if err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+
+}
+
+func Mp4ToAscii(opts Options, filename string) ([]Ascii_t,error){
+	width,height := 0,0
+	if opts.FitTerminal {
+		width,height = GetTermBounds()
+		height = height * 2 
+	} else {
+		height = opts.Height
+		width = opts.Width
+
+	}
+	if height == 0 && width == 0 {
+		height = 120
+		width = 160
+	}
+	opts.Height = height
+	opts.Width = width
+	opts.Height = opts.Height / opts.Compression
+	opts.Width = opts.Width / opts.Compression
+	reader ,err:= NewMp4Reader(opts,filename)
+	var asciis []Ascii_t
+	if err != nil {
+		return nil,err
+	}
+	frames ,err := reader.Frames(1)
+	if err != nil {
+		return nil,err
+	}
+	for frame := range frames {
+		ascii := RgbBufferToAscii(frame,opts)
+		asciis = append(asciis,ascii)
+		PrintAsciiImage(ascii, opts)
+	}
+	return asciis,nil
+}
+
+func CameraToAscii(opts Options,camera int) {
 	
 	width,height := 0,0
 	if opts.FitTerminal {
@@ -70,7 +126,7 @@ func CameraToAscii(opts Options) {
 	opts.Width = width
 	opts.Height = opts.Height / opts.Compression
 	opts.Width = opts.Width / opts.Compression
-	camReader ,err:= NewFrameReader(opts)
+	camReader ,err:= NewCamReader(opts,camera)
 	if err != nil {
 		fmt.Println("Error creating cam frame reader ",err.Error())
 		os.Exit(1)
@@ -81,46 +137,52 @@ func CameraToAscii(opts Options) {
 		os.Exit(1)
 	}
 	frame ,err:= camReader.Frames(1)
+	processed := make(chan []byte,opts.Height * opts.Width * 3)
 	if err != nil {
 		fmt.Println("Error reading frames ",err.Error())
 		os.Exit(1)
 	}
-		go func() {
-			var input string
-			for {
-				fmt.Scanln(&input)
-				if input == "q" {
-					fmt.Println("Stopping...")
-					 err := camReader.Stop() 
-					 if err != nil {
-					 	fmt.Println("Could not close camera " + err.Error())
-					 }
-					 err = recorder.Stop()
-					 if err != nil {
-					 	fmt.Println("Could not close recorder " + err.Error())
-					 }
-					return
+	go func() {
+		var input string
+		for {
+			fmt.Scanln(&input)
+			if input == "q" {
+				fmt.Println("Stopping...")
+				err := camReader.Stop() 
+				if err != nil {
+					fmt.Println("Could not close camera " + err.Error())
 				}
-			}
-		}()
-	for frame := range  frame {
-		ascii := RgbBufferToAscii(frame,opts)
-		img := AsciiToImage(ascii,opts)
-		img = ResizeRgba(img,opts)
-
-		fmt.Println(opts.Width,opts.Height)
-		if img != nil {
-			bytes := ImageToRgbBytes(img)
-			err := recorder.WriteFrame(bytes)
-			if err != nil {
-				fmt.Println("Could not record frame " + err.Error())
+				err = recorder.Stop()
+				if err != nil {
+					fmt.Println("Could not close recorder " + err.Error())
+				}
 				return
 			}
 		}
+	}()
+	go func(){
+		for frame := range  frame {
+			ascii := RgbBufferToAscii(frame,opts)
+			PrintAsciiImage(ascii,opts)
+			img := AsciiToImage(ascii,opts,"")
+			img = ResizeRgba(img,opts)
 
-		// PrintAsciiImage(ascii,opts)
+			if img != nil {
+				bytes := ImageToRgbBytes(img)
+				processed <- bytes
+			}
+
+		}
+	}()
+	for buf := range processed {
+		err := recorder.WriteFrame(buf)
+		if err != nil {
+			fmt.Println("Could not record frame " + err.Error())
+			return
+		}
 	}
 }
+
 func ImageToGrayScale(img image.Image,opts Options,prevFrame image.Image) [][]uint8{
 	height := img.Bounds().Dy()
 	width := img.Bounds().Dx()
@@ -461,7 +523,7 @@ func PrintAsciiGif(asciis []Ascii_t, opts Options,delays []int) {
 		}
 }
 
-func AsciiToImage(ascii Ascii_t, opts Options) *image.RGBA{
+func AsciiToImage(ascii Ascii_t, opts Options,output string) *image.RGBA{
 	if len(ascii.AsciiChars) == 0 {
 		return nil
 	}
@@ -497,13 +559,15 @@ func AsciiToImage(ascii Ascii_t, opts Options) *image.RGBA{
 			drawer.Dot.X = fixed.I((x+1) * charWidth)
 		}
 	}
-	// file, err := os.Create("ascii.png")
-	//
-	// if err != nil {
-	// 	panic("Could not create image")
-	// }
-	// defer file.Close()
-	// png.Encode(file,img)
+	if output != "" {
+		 file, err := os.Create(output)
+		
+		 if err != nil {
+			panic("Could not create image")
+		 }
+		 defer file.Close()
+		 png.Encode(file,img)
+	}
 	return img
 }
 

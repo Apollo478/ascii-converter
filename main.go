@@ -2,9 +2,9 @@ package main
 
 import (
 	"fmt"
-	 "image"
-	 "image/color"
-	 "image/gif"
+	"image"
+	"image/color"
+	"image/gif"
 	_ "image/gif"
 	_ "image/jpeg"
 	_ "image/png"
@@ -26,24 +26,26 @@ func main(){
 		BlendPrev: true,
 		Parallel: true,
 		Compression: 1,
-		Width: 320,
-		Height:240,
+		// Width: 300,
+		// Height:200,
+		FitTerminal: true,
 	}
-	converter.RevRamp = converter.SimpleRamp
 	fmt.Print("Convert image, gif, camera? (1 for image, 2 for gif,3 for camera): ");
 	fmt.Scanf("%d",&chosenOption)
+	converter.RevRamp = converter.SimpleRamp
 	if chosenOption == 3 {
-		// options.FitTerminal = true
-		converter.CameraToAscii(options)
+		converter.CameraToAscii(options,0)
 		os.Exit(0)
 	}
 	fmt.Print("choose the file you wish to convert : ");
 	fmt.Scanf("%s",&chosenFile)
 	file,err := os.Open(chosenFile)
 	if err != nil {
-		panic("Could not open file")
+		fmt.Println("Could not open file")
+		os.Exit(1)
 	}
 	defer file.Close()
+	fmt.Println(file.Name())
 	if options.Invert {
 		converter.RevRamp = converter.ReverseRamp(converter.RevRamp)
 	}
@@ -69,7 +71,7 @@ func main(){
 	 	ascii := converter.ImageToAscii(img,options,nil)
 	 	converter.PrintAsciiImage(ascii,options)
 	 	fmt.Println("done conversion")
-	 	converter.AsciiToImage(ascii,options)
+	 	converter.AsciiToImage(ascii,options,"")
 	 	fmt.Println("imaged")
 	 } else if chosenOption == 2 {
 	
@@ -116,7 +118,14 @@ func main(){
 			// }()
 				converter.PrintAsciiGif(gifImages,options,g.Delay)
 	 	fmt.Println(time.Now())
-	} 
+	} else if chosenOption == 4 {
+		asciis,err := converter.Mp4ToAscii(options,chosenFile)
+		if err != nil {
+			fmt.Println("Could not convert mp4 file"+err.Error())
+		}
+		converter.SaveAsciiToMp4(asciis,options)
+	}
+
 
 	 
 

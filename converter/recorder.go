@@ -56,7 +56,6 @@ func (r *Recorder) WriteFrame(buf []byte) error {
 	return nil
 }
 func (r *Recorder) Stop() error {
-fmt.Println("here")
 	r.active = false
 	r.stdin.Close()
 	return  r.cmd.Wait()
