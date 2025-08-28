@@ -1,12 +1,14 @@
 package converter
 
 import (
+	"errors"
 	"fmt"
 	"image"
 	"image/color"
 	"image/gif"
 	_ "image/jpeg"
 	"image/png"
+	"strings"
 
 	_ "image/png"
 	"os"
@@ -26,6 +28,8 @@ var prevColors [][]Rgb
 const (
 	SimpleRamp = ".-+*=%@#&WMN$"
 	FullRamp = ".'`^\",:;Il!i><~+_-?][}{1)(|\\/tfjrxnuvczXYUJCLQ0OZmwqpdbkhao*#MW&8%B@$"
+	DefaultWidth = 140
+	DefaultHeight = 120
 
 )                                
 func ReverseRamp(ramp string) string {
@@ -50,16 +54,14 @@ func PixelToChar(gray uint8) rune{
 
 }
 
-func SaveAsciiToMp4(frames []Ascii_t, opts Options) error  {
-	recorder, err := NewRecorder(opts,"out.mp4")
+func SaveAsciiToVideo(frames []Ascii_t, opts Options,output string) error  {
+	recorder, err := NewRecorder(opts,output)
 	if err != nil {
 		return  err
 	}
 	for _,ascii := range  frames {
-		PrintAsciiImage(ascii,opts)
 		img := AsciiToImage(ascii,opts,"")
 		img = ResizeRgba(img,opts)
-
 		if img != nil {
 			bytes := ImageToRgbBytes(img)
 			err := recorder.WriteFrame(bytes)
@@ -72,25 +74,8 @@ func SaveAsciiToMp4(frames []Ascii_t, opts Options) error  {
 
 }
 
-func Mp4ToAscii(opts Options, filename string) ([]Ascii_t,error){
-	width,height := 0,0
-	if opts.FitTerminal {
-		width,height = GetTermBounds()
-		height = height * 2 
-	} else {
-		height = opts.Height
-		width = opts.Width
-
-	}
-	if height == 0 && width == 0 {
-		height = 120
-		width = 160
-	}
-	opts.Height = height
-	opts.Width = width
-	opts.Height = opts.Height / opts.Compression
-	opts.Width = opts.Width / opts.Compression
-	reader ,err:= NewMp4Reader(opts,filename)
+func VideoToAscii(opts Options, filename string) ([]Ascii_t,error){
+	reader ,err:= NewVideoReader(opts,filename)
 	var asciis []Ascii_t
 	if err != nil {
 		return nil,err
@@ -102,85 +87,74 @@ func Mp4ToAscii(opts Options, filename string) ([]Ascii_t,error){
 	for frame := range frames {
 		ascii := RgbBufferToAscii(frame,opts)
 		asciis = append(asciis,ascii)
-		PrintAsciiImage(ascii, opts)
 	}
 	return asciis,nil
 }
+func PrintAsciiVideo(asciis []Ascii_t,opts Options) {
+	for _,ascii := range asciis {
+		PrintAsciiImage(ascii,opts)
+		time.Sleep(33 * time.Millisecond)
+	}
+}
 
-func CameraToAscii(opts Options,camera int) {
+func CameraToAscii(opts Options,camera int,output string) error {
 	
-	width,height := 0,0
-	if opts.FitTerminal {
-		width,height = GetTermBounds()
-		height = height * 2 
-	} else {
-		height = opts.Height
-		width = opts.Width
-
-	}
-	if height == 0 && width == 0 {
-		height = 120
-		width = 160
-	}
-	opts.Height = height
-	opts.Width = width
-	opts.Height = opts.Height / opts.Compression
-	opts.Width = opts.Width / opts.Compression
 	camReader ,err:= NewCamReader(opts,camera)
 	if err != nil {
-		fmt.Println("Error creating cam frame reader ",err.Error())
-		os.Exit(1)
-	}
-	recorder, err := NewRecorder(opts,"out.mp4")
-	if err != nil {
-		fmt.Println("Error creating recorder ",err.Error())
-		os.Exit(1)
+		return errors.New("Error creating cam frame reader "+err.Error())
 	}
 	frame ,err:= camReader.Frames(1)
 	processed := make(chan []byte,opts.Height * opts.Width * 3)
 	if err != nil {
-		fmt.Println("Error reading frames ",err.Error())
-		os.Exit(1)
+		return errors.New("Error reading frames "+err.Error())
 	}
-	go func() {
-		var input string
-		for {
-			fmt.Scanln(&input)
-			if input == "q" {
-				fmt.Println("Stopping...")
-				err := camReader.Stop() 
-				if err != nil {
-					fmt.Println("Could not close camera " + err.Error())
+	if opts.Parallel {
+		go func(){
+			for frame := range  frame {
+				ascii := RgbBufferToAscii(frame,opts)
+				if opts.Preview {
+					PrintAsciiImage(ascii,opts)
 				}
-				err = recorder.Stop()
-				if err != nil {
-					fmt.Println("Could not close recorder " + err.Error())
+				img := AsciiToImage(ascii,opts,"")
+				img = ResizeRgba(img,opts)
+
+				if img != nil {
+					bytes := ImageToRgbBytes(img)
+					processed <- bytes
 				}
-				return
-			}
-		}
-	}()
-	go func(){
-		for frame := range  frame {
-			ascii := RgbBufferToAscii(frame,opts)
-			PrintAsciiImage(ascii,opts)
-			img := AsciiToImage(ascii,opts,"")
-			img = ResizeRgba(img,opts)
 
-			if img != nil {
-				bytes := ImageToRgbBytes(img)
-				processed <- bytes
 			}
+		}()
+	} else {
+			for frame := range  frame {
+				ascii := RgbBufferToAscii(frame,opts)
+				if opts.Preview {
+					PrintAsciiImage(ascii,opts)
+				}
+				img := AsciiToImage(ascii,opts,"")
+				img = ResizeRgba(img,opts)
 
-		}
-	}()
-	for buf := range processed {
-		err := recorder.WriteFrame(buf)
+				if img != nil {
+					bytes := ImageToRgbBytes(img)
+					processed <- bytes
+				}
+
+			}
+	}
+
+	if output != ""{
+		recorder, err := NewRecorder(opts,output)
 		if err != nil {
-			fmt.Println("Could not record frame " + err.Error())
-			return
+			return errors.New("Error creating recorder "+err.Error())
+		}
+		for buf := range processed {
+			err := recorder.WriteFrame(buf)
+			if err != nil {
+				return errors.New("Could not record frame " + err.Error())
+			}
 		}
 	}
+	return nil
 }
 
 func ImageToGrayScale(img image.Image,opts Options,prevFrame image.Image) [][]uint8{
@@ -406,14 +380,24 @@ func RgbBufferToAscii(buffer []byte, opts Options) Ascii_t {
 	return res
 }
 
-func ImageToAscii(img image.Image,opts Options,prevFrame image.Image) Ascii_t {
+func ImageToAscii(input string,opts Options,prevFrame image.Image) (Ascii_t,error) {
+	 file,err := os.Open(input)
+	 if err != nil {
+		return Ascii_t{},err
+	 }
+	 defer file.Close()
+	img,_,err := image.Decode(file)
+	if err != nil {
+		return Ascii_t{},err
+	}
+	img = ResizeImg(img,opts)
 	height := img.Bounds().Dy()
 	width := img.Bounds().Dx()
 
 	grayScale := ImageToGrayScale(img,opts,prevFrame)
 	rgbScale := ImageToRgb(img,opts,prevFrame)
 	if len(grayScale) == 0 {
-		return Ascii_t{}
+		return Ascii_t{},errors.New("Empty image")
 	}
 	if opts.Compression != 0 {
 		grayScale = CompressGrayScale(grayScale,opts)
@@ -435,7 +419,7 @@ func ImageToAscii(img image.Image,opts Options,prevFrame image.Image) Ascii_t {
 		}
 	}
 	res.RgbColors = rgbScale
-	return res
+	return res,nil
 }
 func intToBytes(i int) []byte {
 	if i == 0 {
@@ -626,6 +610,15 @@ func GetTermBounds() (int,int){
 		}
 	return 0,0
 }
+
+func GetFileExtension(filename string) string{
+	str := strings.Split(filename, ".")
+	if len(str) != 0 {
+		return str[len(str)-1]
+	}
+	return ""
+}
+
 func ResizeImg(img image.Image,opts Options) image.Image {
 	if opts.FitTerminal {
 			width, height:= GetTermBounds()
@@ -778,30 +771,66 @@ func RgbToImage(frame []byte,width int, height int) *image.RGBA {
 	}
 	return img
 }
-
+var prevFrame []byte
 func ImageToRgbBytes(frame image.Image) []byte {
-	bounds := frame.Bounds()
-	height := bounds.Dy()
-	width := bounds.Dx()
+    bounds := frame.Bounds()
+    width := bounds.Dx()
+    height := bounds.Dy()
+    frameSize := width * height * 3
 
-	frameSize := width * height * 3
-	buf := make([]byte, frameSize)
-	i := 0
-	for y := 0;y < height ; y ++ {
-		for x := 0;x < width ; x ++ {
-			rgb := frame.At(y,x)
-			r ,g,b,_:= rgb.RGBA()
-			r8 := uint8(r >> 8)
-			g8 := uint8(g >> 8)
-			b8 := uint8(b >> 8)
-			buf[i] = r8
-			buf[i+1] = g8
-			buf[i+2] = b8
-			i = i+3
-		}
-	}
-	return buf
+    buf := make([]byte, frameSize)
+
+    i := 0
+    for y := 0; y < height; y++ {
+        for x := 0; x < width; x++ {
+            r, g, b, _ := frame.At(x, y).RGBA()
+            r8 := uint8(r >> 8)
+            g8 := uint8(g >> 8)
+            b8 := uint8(b >> 8)
+
+            if prevFrame != nil &&
+                prevFrame[i] == r8 &&
+                prevFrame[i+1] == g8 &&
+                prevFrame[i+2] == b8 {
+                buf[i] = prevFrame[i]
+                buf[i+1] = prevFrame[i+1]
+                buf[i+2] = prevFrame[i+2]
+            } else {
+                buf[i] = r8
+                buf[i+1] = g8
+                buf[i+2] = b8
+            }
+            i += 3
+        }
+    }
+
+    // save for next call
+    prevFrame = buf
+
+    return buf
 }
+// func ImageToRgbBytes(frame image.Image) []byte {
+// 	bounds := frame.Bounds()
+// 	height := bounds.Dy()
+// 	width := bounds.Dx()
+// 	frameSize := width * height * 3
+// 	buf := make([]byte, frameSize)
+// 	i := 0
+// 	for y := 0;y < height ; y ++ {
+// 		for x := 0;x < width ; x ++ {
+// 			rgb := frame.At(x,y)
+// 			r ,g,b,_:= rgb.RGBA()
+// 			r8 := uint8(r >> 8)
+// 			g8 := uint8(g >> 8)
+// 			b8 := uint8(b >> 8)
+// 			buf[i] = r8
+// 			buf[i+1] = g8
+// 			buf[i+2] = b8
+// 			i = i+3
+// 		}
+// 	}
+// 	return buf
+// }
 func AsciiToRgbBytes(frame Ascii_t) []byte {
 	var width,height = 0,0
 	height = len(frame.RgbColors)

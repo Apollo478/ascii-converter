@@ -1,6 +1,7 @@
 package converter
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"os/exec"
@@ -14,15 +15,19 @@ type Recorder struct {
 var frameSize int
 func NewRecorder(opts Options,output string) (*Recorder, error){
 	 width,height := opts.Width,opts.Height
+	if width %2 != 0 || height %2 != 0 {
+		return nil,errors.New("Height or width are not divisible by 2")
+	}
 	cmd := exec.Command("ffmpeg",
         "-y",                
         "-f", "rawvideo",
         "-pix_fmt", "rgb24",
-        "-s", fmt.Sprintf("%d:%d", width, height),
+        "-s", fmt.Sprintf("%dx%d", width, height),
         "-r", "10",          
         "-i", "pipe:0",
-        "-c:v", "libx264",
-        "-pix_fmt", "rgb24",
+		"-c:v", "libx264",
+		"-crf", "0",          
+		"-preset", "slow",     
         output,
     )
 	frameSize = width * height*3
@@ -40,19 +45,26 @@ func NewRecorder(opts Options,output string) (*Recorder, error){
 	}
 	return &recorder,nil
 }
+func PadVideo(input string) error{
+	cmd := exec.Command("ffmpeg",
+        "-i", input,
+		"-vf","scale=iw*4:ih*4:flags=neighbor,pad=800:600:(ow-iw*4)/2:(oh-ih*4)/2",
+        input,
+    )
+	if err := cmd.Start(); err != nil {
+		return err
+	}
+	return nil
+}
 
 func (r *Recorder) WriteFrame(buf []byte) error {
 	if !r.active {
 		return nil
 	}
-	total := 0
-    for total < len(buf) {
-        n, err := r.stdin.Write(buf[total:])
-        if err != nil {
-            return err
-        }
-        total += n
-    }
+	_, err := r.stdin.Write(buf)
+	if err != nil {
+		return err
+	}
 	return nil
 }
 func (r *Recorder) Stop() error {

@@ -28,6 +28,7 @@ type Options struct {
 
 	FitTerminal bool
 	ClearScreen bool
+	Preview bool
 
 	ShowProgress bool
 	Parallel bool

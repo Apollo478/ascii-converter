@@ -1,6 +1,7 @@
 package converter
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"os/exec"
@@ -14,11 +15,14 @@ type FrameReader struct {
 }
 func NewCamReader(opts Options,input int) (*FrameReader,error) {
 	width,height := opts.Width,opts.Height
+	if width %2 != 0 || height %2 != 0 {
+		return nil,errors.New("Height or width are not divisible by 2")
+	}
 	cmd := exec.Command("ffmpeg",
 		"-f", "v4l2",           
 		"-i", fmt.Sprintf("/dev/video%d",input),    
 		"-framerate", "30",
-		"-vf", fmt.Sprintf("scale=%d:%d",width,height), 
+		"-vf", fmt.Sprintf("scale=%dx%d",width,height), 
 		"-pix_fmt", "rgb24",    
 		"-f", "rawvideo",      
 		"pipe:1")
@@ -39,12 +43,15 @@ func NewCamReader(opts Options,input int) (*FrameReader,error) {
 	return &frameReader,nil
 }
 
-func NewMp4Reader(opts Options,input string) (*FrameReader,error) {
+func NewVideoReader(opts Options,input string) (*FrameReader,error) {
 	width,height := opts.Width,opts.Height
+	if width %2 != 0 || height %2 != 0 {
+		return nil,errors.New("Height or width are not divisible by 2")
+	}
 	cmd := exec.Command("ffmpeg",
 		"-i", input,    
-		"-framerate", "30",
-		"-vf", fmt.Sprintf("scale=%d:%d",width,height), 
+		// "-framerate", "30",
+		"-s", fmt.Sprintf("%dx%d",width,height), 
 		"-pix_fmt", "rgb24",    
 		"-f", "rawvideo",      
 		"pipe:1")
