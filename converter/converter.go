@@ -8,6 +8,7 @@ import (
 	"image/gif"
 	_ "image/jpeg"
 	"image/png"
+	"runtime"
 	"strings"
 
 	_ "image/png"
@@ -109,51 +110,54 @@ func CameraToAscii(opts Options,camera int,output string) error {
 		return errors.New("Error reading frames "+err.Error())
 	}
 	if opts.Parallel {
-		go func(){
-			for frame := range  frame {
-				ascii := RgbBufferToAscii(frame,opts)
-				if opts.Preview {
-					PrintAsciiImage(ascii,opts)
-				}
-				img := AsciiToImage(ascii,opts,"")
-				img = ResizeRgba(img,opts)
+		numWorkers := runtime.NumCPU()
+		for i := 0; i < numWorkers; i++ {
+			go func(){
+				for frame := range  frame {
+					ascii := RgbBufferToAscii(frame,opts)
+					if opts.Preview {
+						PrintAsciiImage(ascii,opts)
+					}
+					img := AsciiToImage(ascii,opts,"")
+					img = ResizeRgba(img,opts)
 
-				if img != nil {
-					bytes := ImageToRgbBytes(img)
-					processed <- bytes
-				}
+					if img != nil {
+						processed <- ImageToRgbBytes(img)
+					}
 
-			}
-		}()
+				}
+			}()
+		}
 	} else {
-			for frame := range  frame {
-				ascii := RgbBufferToAscii(frame,opts)
-				if opts.Preview {
-					PrintAsciiImage(ascii,opts)
-				}
-				img := AsciiToImage(ascii,opts,"")
-				img = ResizeRgba(img,opts)
+			go func(){
+				for frame := range  frame {
+					ascii := RgbBufferToAscii(frame,opts)
+					if opts.Preview {
+						PrintAsciiImage(ascii,opts)
+					}
+					img := AsciiToImage(ascii,opts,"")
+					img = ResizeRgba(img,opts)
 
-				if img != nil {
-					bytes := ImageToRgbBytes(img)
-					processed <- bytes
-				}
+					if img != nil {
+						processed <- ImageToRgbBytes(img)
+					}
 
-			}
+				}
+			}()
 	}
-
 	if output != ""{
-		recorder, err := NewRecorder(opts,output)
-		if err != nil {
-			return errors.New("Error creating recorder "+err.Error())
-		}
-		for buf := range processed {
-			err := recorder.WriteFrame(buf)
+			recorder, err := NewRecorder(opts,output)
 			if err != nil {
-				return errors.New("Could not record frame " + err.Error())
+				return errors.New("Error creating recorder "+err.Error())
+			}
+			for buf := range processed {
+				err := recorder.WriteFrame(buf)
+				if err != nil {
+					return errors.New("Could not record frame " + err.Error())
+				}
+				time.Sleep(100 * time.Millisecond)
 			}
 		}
-	}
 	return nil
 }
 
@@ -671,7 +675,6 @@ func AsciiToGif(imgs []Ascii_t,opts Options,delays []int,disposal []byte,palets 
 	}
 	anim.Delay = append(anim.Delay, delays...)
 	anim.Disposal = append(anim.Disposal, disposal...)
-	fmt.Println("here")
 	gif.EncodeAll(file,&anim)
 }
 

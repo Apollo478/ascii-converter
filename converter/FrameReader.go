@@ -21,8 +21,8 @@ func NewCamReader(opts Options,input int) (*FrameReader,error) {
 	cmd := exec.Command("ffmpeg",
 		"-f", "v4l2",           
 		"-i", fmt.Sprintf("/dev/video%d",input),    
-		"-framerate", "30",
-		"-vf", fmt.Sprintf("scale=%dx%d",width,height), 
+		"-r", "10",
+		"-vf", fmt.Sprintf("scale=%d:%d",width,height), 
 		"-pix_fmt", "rgb24",    
 		"-f", "rawvideo",      
 		"pipe:1")
@@ -80,7 +80,6 @@ func (fr *FrameReader) Frames(skip int) (<-chan []byte, error) {
 
 			_,err := io.ReadFull(fr.stdout,fr.buf)
 			if err != nil {
-				
 				return 
 			}
 			frameCount++

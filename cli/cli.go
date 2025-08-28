@@ -84,8 +84,8 @@ func Execute() {
 			convertCmd.Usage()
 			os.Exit(1)
 		}
-		if *input == "" {
-			fmt.Println("Error: -input is required")
+		if *output == "" {
+			fmt.Println("Error: -output is required")
 			convertCmd.Usage()
 			os.Exit(1)
 		}
@@ -143,7 +143,7 @@ func Execute() {
 				os.Exit(1)
 			}
 			
-			go converter.AsciiToGif(asciis,opts,g.Delay,g.Disposal,palets,*output)
+			 converter.AsciiToGif(asciis,opts,g.Delay,g.Disposal,palets,*output)
 			if *preview {
 				 converter.PrintAsciiGif(asciis,opts,g.Delay)
 			}
@@ -256,7 +256,71 @@ func Execute() {
 		}
 
 	case "camera": {
-		
+		cameraCmd := flag.NewFlagSet("camera", flag.ExitOnError)
+
+		output := cameraCmd.String("output", "", "output file")
+		cameraCmd.StringVar(output, "o", "", "Alias for --output")
+
+		width := cameraCmd.Int("width", converter.DefaultWidth, "ASCII width")
+		cameraCmd.IntVar(width, "w", converter.DefaultWidth, "Alias for --width")
+
+		height := cameraCmd.Int("height", converter.DefaultHeight, "ASCII height")
+		cameraCmd.IntVar(height, "h", converter.DefaultHeight, "Alias for --height")
+
+		compression := cameraCmd.Int("compression", 1, "ASCII compression")
+		cameraCmd.IntVar(compression, "c", 1, "Alias for --compression")
+
+		fitTerminal := cameraCmd.Bool("fit-terminal", false, "Fit ASCII to terminal size")
+		cameraCmd.BoolVar(fitTerminal, "f", false, "Alias for --fit-terminal")
+
+		color := cameraCmd.Bool("color", true, "Enable colored ASCII")
+		cameraCmd.BoolVar(color, "C", true, "Alias for --color")
+
+		parallel := cameraCmd.Bool("parallel", false, "Process frames in parallel")
+		cameraCmd.BoolVar(parallel, "p", false, "Alias for --parallel")
+
+
+		clearScreen := cameraCmd.Bool("clear-screen", true, "Clear screen before printing frames")
+		cameraCmd.BoolVar(clearScreen, "s", true, "Alias for --clear-screen")
+
+		inverse := cameraCmd.Bool("invert", false, "Invert the ASCII scale")
+		cameraCmd.BoolVar(inverse, "I", false, "Alias for --invert")
+
+		aspectRatio := cameraCmd.Float64("aspect-ratio", 0.5, "Set aspect ratio of ASCII’s Y axis")
+		cameraCmd.Float64Var(aspectRatio, "a", 0.5, "Alias for --aspect-ratio")
+
+		preview := cameraCmd.Bool("preview", false, "Preview ascii while saving")
+		cameraCmd.BoolVar(preview, "P", false, "Alias for --preview")
+
+		cameraCmd.Parse(os.Args[2:])
+		opts.Width = *width
+		opts.Height = *height
+		opts.Compression = *compression
+		opts.FitTerminal = *fitTerminal
+		opts.AspectRatio = *aspectRatio
+		opts.UseColor = *color
+		opts.AspectRatio = *aspectRatio
+		opts.ClearScreen = *clearScreen
+		opts.Parallel = *parallel
+		opts.Invert = *inverse
+		opts.Preview =*preview 
+		if *inverse {
+			converter.RevRamp = converter.ReverseRamp(converter.RevRamp)
+		}
+		if opts.FitTerminal {
+			opts.Width,opts.Height = converter.GetTermBounds()
+		}
+		opts.Height = opts.Height / opts.Compression
+		opts.Width = opts.Width / opts.Compression
+		if opts.Parallel && opts.Preview {
+			fmt.Println("Cant preview paralelled frames")
+			os.Exit(1)
+		}
+		err := converter.CameraToAscii(opts,0,*output)
+		if err != nil {
+			fmt.Println(err)
+			os.Exit(1)
+		}
 	}
 	default:
 		printUsage()
