@@ -380,17 +380,7 @@ func RgbBufferToAscii(buffer []byte, opts Options) Ascii_t {
 	return res
 }
 
-func ImageToAscii(input string,opts Options,prevFrame image.Image) (Ascii_t,error) {
-	 file,err := os.Open(input)
-	 if err != nil {
-		return Ascii_t{},err
-	 }
-	 defer file.Close()
-	img,_,err := image.Decode(file)
-	if err != nil {
-		return Ascii_t{},err
-	}
-	img = ResizeImg(img,opts)
+func ImageToAscii(img image.Image,opts Options,prevFrame image.Image) (Ascii_t,error) {
 	height := img.Bounds().Dy()
 	width := img.Bounds().Dx()
 
@@ -642,14 +632,14 @@ func ResizeRgba(img *image.RGBA,opts Options) *image.RGBA {
 	return dst
 }
 
-func AsciiToGifSlow(imgs []Ascii_t,opts Options,delays []int,disposal []byte,palets []color.Palette){
+func AsciiToGif(imgs []Ascii_t,opts Options,delays []int,disposal []byte,palets []color.Palette,output string){
 	anim := gif.GIF{
 		LoopCount: 0,
 	}
-	file, err := os.Create("ascii.gif")
+	file, err := os.Create(output)
 
 	if err != nil {
-		panic("Could not create image")
+		panic("Could not create gif")
 	}
 	defer file.Close()
 	frames := make([]*image.Paletted,len(imgs))
@@ -681,20 +671,14 @@ func AsciiToGifSlow(imgs []Ascii_t,opts Options,delays []int,disposal []byte,pal
 	}
 	anim.Delay = append(anim.Delay, delays...)
 	anim.Disposal = append(anim.Disposal, disposal...)
+	fmt.Println("here")
 	gif.EncodeAll(file,&anim)
 }
 
 func PrintProgress(curr int,max int) {
 	
-fd := int(os.Stdout.Fd())
-	width := 0 // fallback
-	if term.IsTerminal(fd) {
-		w, _, err := term.GetSize(fd)
-		if err == nil {
-			width = w
-		}
-	}
 
+	width,_ := GetTermBounds()
 	barWidth := width - 10 
 	progress := float64(curr) / float64(max)
 	filled := int(progress * float64(barWidth))
@@ -715,6 +699,35 @@ fd := int(os.Stdout.Fd())
 		fmt.Println()
 	}}
 
+func GifToAscii(g *gif.GIF, opts Options) ([]Ascii_t,[]color.Palette,error){
+	
+	
+	  	palets  := make([]color.Palette,len(g.Image))
+	
+	  	gifImages := make([]Ascii_t, len(g.Image))
+
+	  	for i, img := range g.Image {
+	  		var frameToPass image.Image
+	  		if i == 0 {
+	  			frameToPass = nil 
+	  		} else if g.Disposal[i-1] == gif.DisposalNone || g.Disposal[i-1] == gif.DisposalPrevious {
+	  			frameToPass = g.Image[i-1]
+	  		}
+	  		 img = ResizePaletted(img,opts)
+	  		 palets[i] = img.Palette
+	
+	  		var ascii Ascii_t
+			ascii,err := ImageToAscii(img, opts,frameToPass)
+			if err != nil {
+				return nil,nil,err
+			}
+	
+	  		if len(ascii.AsciiChars)!= 0{
+	  			gifImages[i] = ascii
+	  		}
+	  	}
+		return gifImages,palets,nil
+}
 func AsciiToPalleted(chars Ascii_t,opts Options,pale []color.Color) *image.Paletted {
 	
 	var height int = 0
@@ -804,33 +817,10 @@ func ImageToRgbBytes(frame image.Image) []byte {
         }
     }
 
-    // save for next call
     prevFrame = buf
 
     return buf
 }
-// func ImageToRgbBytes(frame image.Image) []byte {
-// 	bounds := frame.Bounds()
-// 	height := bounds.Dy()
-// 	width := bounds.Dx()
-// 	frameSize := width * height * 3
-// 	buf := make([]byte, frameSize)
-// 	i := 0
-// 	for y := 0;y < height ; y ++ {
-// 		for x := 0;x < width ; x ++ {
-// 			rgb := frame.At(x,y)
-// 			r ,g,b,_:= rgb.RGBA()
-// 			r8 := uint8(r >> 8)
-// 			g8 := uint8(g >> 8)
-// 			b8 := uint8(b >> 8)
-// 			buf[i] = r8
-// 			buf[i+1] = g8
-// 			buf[i+2] = b8
-// 			i = i+3
-// 		}
-// 	}
-// 	return buf
-// }
 func AsciiToRgbBytes(frame Ascii_t) []byte {
 	var width,height = 0,0
 	height = len(frame.RgbColors)
