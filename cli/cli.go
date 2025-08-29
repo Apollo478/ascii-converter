@@ -19,6 +19,7 @@ func Execute() {
 		BlendPrev: true,
 		UseAlpha: true,
 		Compression: 1,
+		ShowProgress: false,
 	}
 
 	converter.RevRamp = converter.SimpleRamp
@@ -326,4 +327,5 @@ func printUsage() {
 	fmt.Println("\nCommands:")
 	fmt.Println("  convert   Convert image/gif/video to ASCII")
 	fmt.Println("  preview   Preview ASCII frames in terminal")
+	fmt.Println("  camera   Preview/convert camera ASCII frames ")
 }

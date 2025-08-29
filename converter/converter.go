@@ -623,7 +623,9 @@ func AsciiToGif(imgs []Ascii_t,opts Options,delays []int,disposal []byte,palets 
 	}
 	defer file.Close()
 	frames := make([]*image.Paletted,len(imgs))
-	PrintProgress(0,len(imgs))
+	if opts.ShowProgress {
+		PrintProgress(0,len(imgs))
+	}
 	var wg sync.WaitGroup
 	framesDone := 0
 	for i,chars := range imgs {
@@ -679,19 +681,20 @@ func PrintProgress(curr int,max int) {
 	}}
 
 func GifToAscii(g *gif.GIF, opts Options) ([]Ascii_t,[]color.Palette,error){
-	palets := make([]color.Palette, len(g.Image))
+	 palets := make([]color.Palette, len(g.Image))
     gifImages := make([]Ascii_t, len(g.Image))
 
     bounds := image.Rect(0, 0, g.Config.Width, g.Config.Height)
     canvas := image.NewRGBA(bounds)
-    prevCanvas := image.NewRGBA(bounds) 
+    prevCanvas := image.NewRGBA(bounds)
+
 
     for i, img := range g.Image {
+		bgColor := image.NewUniform(g.Image[i].Palette[g.BackgroundIndex])
         if i > 0 {
             switch g.Disposal[i-1] {
             case gif.DisposalBackground:
-				bgColor := g.Image[0].Palette[g.BackgroundIndex]
-				draw.Draw(canvas, g.Image[i-1].Bounds(), image.NewUniform(bgColor), image.Point{}, draw.Src)
+                draw.Draw(canvas, g.Image[i-1].Bounds(), bgColor, image.Point{}, draw.Src)
             case gif.DisposalPrevious:
                 draw.Draw(canvas, bounds, prevCanvas, image.Point{}, draw.Src)
             }
@@ -704,16 +707,13 @@ func GifToAscii(g *gif.GIF, opts Options) ([]Ascii_t,[]color.Palette,error){
         draw.Draw(canvas, img.Bounds(), img, image.Point{}, draw.Over)
 
         resized := ResizeRgba(canvas, opts)
-        palets[i] = img.Palette
-
         ascii, err := ImageToAscii(resized, opts)
         if err != nil {
             return nil, nil, err
         }
 
-        if len(ascii.AsciiChars) != 0 {
-            gifImages[i] = ascii
-        }
+        gifImages[i] = ascii
+        palets[i] = img.Palette
     }
     return gifImages, palets, nil
 }
