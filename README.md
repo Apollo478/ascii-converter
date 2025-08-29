@@ -76,7 +76,7 @@ Usage of convert:
 ```bash
 ac preview -i <input> [options]
 
-Options
+#Options
 Usage of preview:
   -C    Alias for --color
   -I    Alias for --invert
@@ -162,4 +162,4 @@ In this example, the tool takes a video input and outputs an ASCII-rendered vers
 ### Try it yourself
 ```bash
 ac -i input.mp4 -o output.mp4 -C
-```` ``` ````
+```
