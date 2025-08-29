@@ -114,7 +114,7 @@ func Execute() {
 				os.Exit(1)
 			}
 			img = converter.ResizeImg(img,opts)
-			ascii,err := converter.ImageToAscii(img,opts,nil)
+			ascii,err := converter.ImageToAscii(img,opts)
 			if err != nil {
 				fmt.Println(err)
 				os.Exit(1)
@@ -227,7 +227,7 @@ func Execute() {
 				os.Exit(1)
 			}
 			img = converter.ResizeImg(img,opts)
-			ascii,err := converter.ImageToAscii(img,opts,nil)
+			ascii,err := converter.ImageToAscii(img,opts)
 			if err != nil {
 				fmt.Println(err)
 				os.Exit(1)

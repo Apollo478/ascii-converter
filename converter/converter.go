@@ -105,7 +105,8 @@ func CameraToAscii(opts Options,camera int,output string) error {
 		return errors.New("Error creating cam frame reader "+err.Error())
 	}
 	frame ,err:= camReader.Frames(1)
-	processed := make(chan []byte,opts.Height * opts.Width * 3)
+	var processed chan []byte
+	processed = make(chan []byte,opts.Height * opts.Width * 3)
 	if err != nil {
 		return errors.New("Error reading frames "+err.Error())
 	}
@@ -146,22 +147,27 @@ func CameraToAscii(opts Options,camera int,output string) error {
 			}()
 	}
 	if output != ""{
-			recorder, err := NewRecorder(opts,output)
-			if err != nil {
-				return errors.New("Error creating recorder "+err.Error())
-			}
-			for buf := range processed {
-				err := recorder.WriteFrame(buf)
-				if err != nil {
-					return errors.New("Could not record frame " + err.Error())
-				}
-				time.Sleep(100 * time.Millisecond)
-			}
+		recorder, err := NewRecorder(opts,output)
+		if err != nil {
+			return errors.New("Error creating recorder "+err.Error())
 		}
+		for buf := range processed {
+			err := recorder.WriteFrame(buf)
+			if err != nil {
+				return errors.New("Could not record frame " + err.Error())
+			}
+			time.Sleep(100 * time.Millisecond)
+		}
+	} else {
+		for range processed  {
+			
+		}
+	}
+
 	return nil
 }
 
-func ImageToGrayScale(img image.Image,opts Options,prevFrame image.Image) [][]uint8{
+func ImageToGrayScale(img image.Image,opts Options) [][]uint8{
 	height := img.Bounds().Dy()
 	width := img.Bounds().Dx()
 	height = int(float32(height) * float32(opts.AspectRatio))
@@ -175,24 +181,11 @@ func ImageToGrayScale(img image.Image,opts Options,prevFrame image.Image) [][]ui
 			if srcY >= img.Bounds().Dy() {
 				srcY = img.Bounds().Dy() - 1
 			}
-			r, g, b ,a:= img.At(x, srcY).RGBA()
+			r, g, b ,_:= img.At(x, srcY).RGBA()
 			r8 := uint8(r >> 8)
 			g8 := uint8(g >> 8)
 			b8 := uint8(b >> 8)
-			a8 := uint8(a >> 8)
-			if a8 == 0 && opts.BlendPrev   && prevFrame != nil && prevFrame.Bounds().Dx() >  x{
-				srcY := int(float64(y) / opts.AspectRatio)
-				if   srcY >= prevFrame.Bounds().Dy() {
-					srcY = prevFrame.Bounds().Dy() - 1
-				}
-				pr, pg, pb ,_ := prevFrame.At(x, srcY).RGBA()
-				pr8 := uint8(pr >> 8)
-				pg8 := uint8(pg >> 8)
-				pb8 := uint8(pb >> 8)
-				grayScale[y][x] = uint8(RGBToGraycale(uint32(pr8), uint32(pg8), uint32(pb8)))
-			} else {
-				grayScale[y][x] = uint8(RGBToGraycale(uint32(r8), uint32(g8), uint32(b8)))
-			}
+			grayScale[y][x] = uint8(RGBToGraycale(uint32(r8), uint32(g8), uint32(b8)))
 		}
 	}
 	return grayScale
@@ -229,7 +222,7 @@ func CompressGrayScale(gray [][]uint8,opts Options) [][]uint8{
 	return grayScale
 }
 
-func ImageToRgb(img image.Image,opts Options,prevFrame image.Image) [][]Rgb {
+func ImageToRgb(img image.Image,opts Options) [][]Rgb {
 	height := img.Bounds().Dy()
 	width := img.Bounds().Dx()
 	height = int(float32(height) * float32(opts.AspectRatio))
@@ -249,35 +242,14 @@ func ImageToRgb(img image.Image,opts Options,prevFrame image.Image) [][]Rgb {
 			g8 := uint8(g >> 8)
 			b8 := uint8(b >> 8)
 			a8 := uint8(a >> 8)
-			
-			if a8 == 0 && opts.BlendPrev && prevFrame != nil && prevFrame.Bounds().Dx() >  x  {
-				if srcY >= prevFrame.Bounds().Dy() {
-					srcY = prevFrame.Bounds().Dy() - 1
-				}
-				pr, pg, pb ,pa := prevFrame.At(x, srcY).RGBA()
-				pr8 := uint8(pr >> 8)
-				pg8 := uint8(pg >> 8)
-				pb8 := uint8(pb >> 8)
-				pa8 := uint8(pa >> 8)
-				rgbScale[y][x] = Rgb{
-					uint32(pr8),
-					uint32(pg8), 
-					uint32(pb8),
-					255,
-				}
-				if opts.UseAlpha {
-					rgbScale[y][x].A = uint32(pa8)
-				}
-			} else {
-				rgbScale[y][x] = Rgb{
-					uint32(r8),
-					uint32(g8), 
-					uint32(b8),
-					255,
-				}
-				if opts.UseAlpha {
-					rgbScale[y][x].A = uint32(a8)
-				}
+			rgbScale[y][x] = Rgb{
+				uint32(r8),
+				uint32(g8), 
+				uint32(b8),
+				255,
+			}
+			if opts.UseAlpha {
+				rgbScale[y][x].A = uint32(a8)
 			}
 		}
 	}
@@ -384,12 +356,12 @@ func RgbBufferToAscii(buffer []byte, opts Options) Ascii_t {
 	return res
 }
 
-func ImageToAscii(img image.Image,opts Options,prevFrame image.Image) (Ascii_t,error) {
+func ImageToAscii(img image.Image,opts Options) (Ascii_t,error) {
 	height := img.Bounds().Dy()
 	width := img.Bounds().Dx()
 
-	grayScale := ImageToGrayScale(img,opts,prevFrame)
-	rgbScale := ImageToRgb(img,opts,prevFrame)
+	grayScale := ImageToGrayScale(img,opts)
+	rgbScale := ImageToRgb(img,opts)
 	if len(grayScale) == 0 {
 		return Ascii_t{},errors.New("Empty image")
 	}
@@ -419,7 +391,7 @@ func intToBytes(i int) []byte {
 	if i == 0 {
 		return []byte{'0'}
 	}
-	var buf [20]byte // values 0-255
+	var buf [20]byte 
 	n := len(buf)
 	for i > 0 {
 		n--
@@ -441,7 +413,7 @@ func PrintAsciiImage(ascii Ascii_t, opts Options) {
 			prevColors[y] = make([]Rgb, len(ascii.RgbColors[y]))
 		}
 		if opts.ClearScreen {
-			os.Stdout.WriteString("\033[2J\033[H") // clear fully once
+			os.Stdout.WriteString("\033[2J\033[H") 
 		}
 	}
 
@@ -703,33 +675,43 @@ func PrintProgress(curr int,max int) {
 	}}
 
 func GifToAscii(g *gif.GIF, opts Options) ([]Ascii_t,[]color.Palette,error){
-	
-	
-	  	palets  := make([]color.Palette,len(g.Image))
-	
-	  	gifImages := make([]Ascii_t, len(g.Image))
+	palets := make([]color.Palette, len(g.Image))
+    gifImages := make([]Ascii_t, len(g.Image))
 
-	  	for i, img := range g.Image {
-	  		var frameToPass image.Image
-	  		if i == 0 {
-	  			frameToPass = nil 
-	  		} else if g.Disposal[i-1] == gif.DisposalNone || g.Disposal[i-1] == gif.DisposalPrevious {
-	  			frameToPass = g.Image[i-1]
-	  		}
-	  		 img = ResizePaletted(img,opts)
-	  		 palets[i] = img.Palette
-	
-	  		var ascii Ascii_t
-			ascii,err := ImageToAscii(img, opts,frameToPass)
-			if err != nil {
-				return nil,nil,err
-			}
-	
-	  		if len(ascii.AsciiChars)!= 0{
-	  			gifImages[i] = ascii
-	  		}
-	  	}
-		return gifImages,palets,nil
+    bounds := image.Rect(0, 0, g.Config.Width, g.Config.Height)
+    canvas := image.NewRGBA(bounds)
+    prevCanvas := image.NewRGBA(bounds) 
+
+    for i, img := range g.Image {
+        if i > 0 {
+            switch g.Disposal[i-1] {
+            case gif.DisposalBackground:
+				bgColor := g.Image[0].Palette[g.BackgroundIndex]
+				draw.Draw(canvas, g.Image[i-1].Bounds(), image.NewUniform(bgColor), image.Point{}, draw.Src)
+            case gif.DisposalPrevious:
+                draw.Draw(canvas, bounds, prevCanvas, image.Point{}, draw.Src)
+            }
+        }
+
+        if g.Disposal[i] == gif.DisposalPrevious {
+            draw.Draw(prevCanvas, bounds, canvas, image.Point{}, draw.Src)
+        }
+
+        draw.Draw(canvas, img.Bounds(), img, image.Point{}, draw.Over)
+
+        resized := ResizeRgba(canvas, opts)
+        palets[i] = img.Palette
+
+        ascii, err := ImageToAscii(resized, opts)
+        if err != nil {
+            return nil, nil, err
+        }
+
+        if len(ascii.AsciiChars) != 0 {
+            gifImages[i] = ascii
+        }
+    }
+    return gifImages, palets, nil
 }
 func AsciiToPalleted(chars Ascii_t,opts Options,pale []color.Color) *image.Paletted {
 	
