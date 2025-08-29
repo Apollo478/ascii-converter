@@ -14,6 +14,18 @@ Here’s a side-by-side look at the conversion:
 | ![Original](./examples/anime.jpg) | ![ASCII BW](./examples/ascii_anime.png) | ![ASCII Color](./examples/ascii_color_anime.png) |
 | ![Original](./examples/test.jpg) | ![ASCII BW](./examples/ascii_test.png) | ![ASCII Color](./examples/ascii_color_test.png) |
 
+
+## 📖 Usage
+
+```bash
+Usage: ascii-cli <command> [options]
+
+Commands:
+  convert   Convert image/gif/video to ASCII
+  preview   Preview ASCII frames in terminal
+  camera    Preview/convert camera ASCII frames
+
+
 ## 🎥 CLI Demo
 
 Here’s a quick demo of the CLI converting a video into ASCII art:
