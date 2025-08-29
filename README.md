@@ -18,7 +18,7 @@ Here’s a side-by-side look at the conversion:
 
 Here’s a quick demo of the CLI converting a video into ASCII art:
 
-![CLI Demo](./examples/video.mkv)
+![CLI Demo](./examples/video.gif)
 
 In this example, the tool takes a video input and outputs an ASCII-rendered version in real time.
 
