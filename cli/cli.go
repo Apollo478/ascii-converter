@@ -89,7 +89,7 @@ func Execute() {
 			os.Exit(1)
 		}
 		extension := converter.GetFileExtension(*input)
-		if extension == "mp4" || extension == "mov" || extension == "avi" {
+		if extension == "mp4"  || extension == "mov" || extension == "avi" || extension == "webm" {
 			asciis, err := converter.VideoToAscii(opts,*input)
 			if err != nil {
 				fmt.Println(err)
@@ -203,7 +203,7 @@ func Execute() {
 		}
 		extension := converter.GetFileExtension(*input)
 		opts.PreviewInPreview = true
-		if extension == "mp4" || extension == "mov" || extension == "avi" {
+		if extension == "mp4" || extension == "mov" || extension == "avi" || extension == "webm" {
 			opts.Preview = true
 			_, err := converter.VideoToAscii(opts,*input)
 			if err != nil {

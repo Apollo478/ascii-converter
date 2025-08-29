@@ -89,7 +89,7 @@ func VideoToAscii(opts Options, filename string) ([]Ascii_t,error){
 		ascii := RgbBufferToAscii(frame,opts)
 		if opts.PreviewInPreview {
 			PrintAsciiImage(ascii,opts)
-			time.Sleep(33 * time.Millisecond)
+			time.Sleep(100 * time.Millisecond)
 		}
 		asciis = append(asciis,ascii)
 	}
