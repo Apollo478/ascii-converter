@@ -26,12 +26,12 @@ Commands:
   preview   Preview ASCII frames in terminal
   camera    Preview/convert camera ASCII frames
 
-```` ``` ````
+``` 
 ### convert 
 ```bash
 ac convert -i <input> -o <output> [options]
 
-```` ``` ````
+```
 #### Options
 ```bash 
 Usage of convert:
