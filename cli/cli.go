@@ -323,7 +323,7 @@ func Execute() {
 	}
 }
 func printUsage() {
-	fmt.Println("Usage: ascii-cli <command> [options]")
+	fmt.Println("Usage: ac <command> [options]")
 	fmt.Println("\nCommands:")
 	fmt.Println("  convert   Convert image/gif/video to ASCII")
 	fmt.Println("  preview   Preview ASCII frames in terminal")
