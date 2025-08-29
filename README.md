@@ -11,7 +11,7 @@ Here’s a side-by-side look at the conversion:
 |--------------|------------------|-----------------|
 | ![Original](./examples/cig.gif) | ![ASCII BW](./examples/ascii_cig.gif) | ![ASCII Color](./examples/ascii_color_cig.gif) |
 | ![Original](./examples/kame.gif) | ![ASCII BW](./examples/ascii_kame.gif) | ![ASCII Color](./examples/ascii_color_kame.gif) |
-| ![Original](./examples/anime.jpg) | ![ASCII BW](./examples/ascii_anime.jpg) | ![ASCII Color](./examples/ascii_color_anime.jpg) |
-| ![Original](./examples/test.jpg) | ![ASCII BW](./examples/ascii_test.jpg) | ![ASCII Color](./examples/ascii_color_test.jpg) |
+| ![Original](./examples/anime.jpg) | ![ASCII BW](./examples/ascii_anime.png) | ![ASCII Color](./examples/ascii_color_anime.png) |
+| ![Original](./examples/test.jpg) | ![ASCII BW](./examples/ascii_test.png) | ![ASCII Color](./examples/ascii_color_test.png) |
 
 
