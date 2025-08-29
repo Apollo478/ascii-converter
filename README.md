@@ -31,9 +31,7 @@ Commands:
 ```bash
 ac convert -i <input> -o <output> [options]
 
-```
-#### Options
-```bash 
+# Options
 Usage of convert:
   -C    Alias for --color
   -I    Alias for --invert
@@ -76,11 +74,9 @@ Usage of convert:
 ```
 ### preview 
 ```bash
-ac convert -i <input> [options]
+ac preview -i <input> [options]
 
-```` ``` ````
-#### Options
-```bash 
+Options
 Usage of preview:
   -C    Alias for --color
   -I    Alias for --invert
@@ -118,9 +114,7 @@ Usage of preview:
 ```bash
 ac camera  [options]
 
-```` ``` ````
-#### Options
-```bash 
+# Options
 Usage of camera:
   -C    Alias for --color
   -I    Alias for --invert
