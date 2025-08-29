@@ -29,7 +29,10 @@ type Options struct {
 	FitTerminal bool
 	ClearScreen bool
 	Preview bool
+	// cuz i want to display the frames while theyre being processed in ac preview video files and not in ac convert
+	PreviewInPreview bool
 
 	ShowProgress bool
 	Parallel bool
+
 }

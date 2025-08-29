@@ -18,6 +18,7 @@ func Execute() {
 	opts := converter.Options{
 		BlendPrev: true,
 		UseAlpha: true,
+		Compression: 1,
 	}
 
 	converter.RevRamp = converter.SimpleRamp
@@ -36,14 +37,12 @@ func Execute() {
 		height := convertCmd.Int("height", converter.DefaultHeight, "ASCII height")
 		convertCmd.IntVar(height, "h", converter.DefaultHeight, "Alias for --height")
 
-		compression := convertCmd.Int("compression", 1, "ASCII compression")
-		convertCmd.IntVar(compression, "c", 1, "Alias for --compression")
 
 		fitTerminal := convertCmd.Bool("fit-terminal", false, "Fit ASCII to terminal size")
 		convertCmd.BoolVar(fitTerminal, "f", false, "Alias for --fit-terminal")
 
-		color := convertCmd.Bool("color", true, "Enable colored ASCII")
-		convertCmd.BoolVar(color, "C", true, "Alias for --color")
+		color := convertCmd.Bool("color", false, "Enable colored ASCII")
+		convertCmd.BoolVar(color, "C", false, "Alias for --color")
 
 		parallel := convertCmd.Bool("parallel", false, "Process frames in parallel")
 		convertCmd.BoolVar(parallel, "p", false, "Alias for --parallel")
@@ -62,7 +61,6 @@ func Execute() {
 		convertCmd.Parse(os.Args[2:])
 		opts.Width = *width
 		opts.Height = *height
-		opts.Compression = *compression
 		opts.FitTerminal = *fitTerminal
 		opts.AspectRatio = *aspectRatio
 		opts.UseColor = *color
@@ -96,10 +94,10 @@ func Execute() {
 				fmt.Println(err)
 				os.Exit(1)
 			}
+			go converter.SaveAsciiToVideo(asciis,opts,*output)
 			if *preview {
 				converter.PrintAsciiVideo(asciis,opts)
 			}
-			converter.SaveAsciiToVideo(asciis,opts,*output)
 		}
 		if extension =="png" || extension =="jpg" || extension =="jpeg" {
 			file,err := os.Open(*input)
@@ -160,14 +158,12 @@ func Execute() {
 		height := previewCmd.Int("height", converter.DefaultHeight, "ASCII height")
 		previewCmd.IntVar(height, "h", converter.DefaultHeight, "Alias for --height")
 
-		compression := previewCmd.Int("compression", 1, "ASCII compression")
-		previewCmd.IntVar(compression, "c", 1, "Alias for --compression")
 
 		fitTerminal := previewCmd.Bool("fit-terminal", false, "Fit ASCII to terminal size")
 		previewCmd.BoolVar(fitTerminal, "f", false, "Alias for --fit-terminal")
 
-		color := previewCmd.Bool("color", true, "Enable colored ASCII")
-		previewCmd.BoolVar(color, "C", true, "Alias for --color")
+		color := previewCmd.Bool("color", false, "Enable colored ASCII")
+		previewCmd.BoolVar(color, "C", false, "Alias for --color")
 
 		parallel := previewCmd.Bool("parallel", false, "Process frames in parallel")
 		previewCmd.BoolVar(parallel, "p", false, "Alias for --parallel")
@@ -183,7 +179,6 @@ func Execute() {
 		previewCmd.Parse(os.Args[2:])
 		opts.Width = *width
 		opts.Height = *height
-		opts.Compression = *compression
 		opts.FitTerminal = *fitTerminal
 		opts.AspectRatio = *aspectRatio
 		opts.UseColor = *color
@@ -206,13 +201,15 @@ func Execute() {
 			os.Exit(1)
 		}
 		extension := converter.GetFileExtension(*input)
+		opts.PreviewInPreview = true
 		if extension == "mp4" || extension == "mov" || extension == "avi" {
-			asciis, err := converter.VideoToAscii(opts,*input)
+			opts.Preview = true
+			_, err := converter.VideoToAscii(opts,*input)
 			if err != nil {
 				fmt.Println(err)
 				os.Exit(1)
 			}
-			converter.PrintAsciiVideo(asciis,opts)
+			// converter.PrintAsciiVideo(asciis,opts)
 		}
 		if extension =="png" || extension =="jpg" || extension =="jpeg" {
 			file,err := os.Open(*input)
@@ -267,14 +264,12 @@ func Execute() {
 		height := cameraCmd.Int("height", converter.DefaultHeight, "ASCII height")
 		cameraCmd.IntVar(height, "h", converter.DefaultHeight, "Alias for --height")
 
-		compression := cameraCmd.Int("compression", 1, "ASCII compression")
-		cameraCmd.IntVar(compression, "c", 1, "Alias for --compression")
 
 		fitTerminal := cameraCmd.Bool("fit-terminal", false, "Fit ASCII to terminal size")
 		cameraCmd.BoolVar(fitTerminal, "f", false, "Alias for --fit-terminal")
 
-		color := cameraCmd.Bool("color", true, "Enable colored ASCII")
-		cameraCmd.BoolVar(color, "C", true, "Alias for --color")
+		color := cameraCmd.Bool("color", false, "Enable colored ASCII")
+		cameraCmd.BoolVar(color, "C", false, "Alias for --color")
 
 		parallel := cameraCmd.Bool("parallel", false, "Process frames in parallel")
 		cameraCmd.BoolVar(parallel, "p", false, "Alias for --parallel")
@@ -295,7 +290,6 @@ func Execute() {
 		cameraCmd.Parse(os.Args[2:])
 		opts.Width = *width
 		opts.Height = *height
-		opts.Compression = *compression
 		opts.FitTerminal = *fitTerminal
 		opts.AspectRatio = *aspectRatio
 		opts.UseColor = *color
