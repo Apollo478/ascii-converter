@@ -1,9 +1,16 @@
+![MIT](https://img.shields.io/badge/license-MIT-green.svg)
+
 # 🎥 ASCII Converter  
 Convert images, GIFs, videos and webcam steam into ASCII art in the terminal or save them as files.
 
 **ASCII Converter** is a tool that can be used to convert or preview images (`png`, `jpg`), GIFs, videos (`mp4`, `avi`, `mov`, `webm`) and webcam streams in ASCII art mode.
 > ⚠️ Video and webcam support requires **FFmpeg** to be installed.  
 > 📷 Camera conversion is currently available **only on Linux**.
+## Installation
+
+```bash
+go install github.com/Apollo478/ascii-converter@latest
+```
 # GIF/Image to ASCII Comparison
 
 Here’s a side-by-side look at the conversion:
