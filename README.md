@@ -168,5 +168,5 @@ In this example, the tool takes a video input and outputs an ASCII-rendered vers
 
 ### Try it yourself
 ```bash
-ac -i input.mp4 -o output.mp4 -C
+ac preview -i examples/andvari.mp4 -C
 ```
