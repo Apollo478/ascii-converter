@@ -27,7 +27,7 @@ var asciiBuffer []byte
 var prevChars [][]rune
 var prevColors [][]Rgb
 const (
-	SimpleRamp = ".-+*=%@#&WMN$"
+	SimpleRamp = " .-+*=%@#&WMN$"
 	FullRamp = ".'`^\",:;Il!i><~+_-?][}{1)(|\\/tfjrxnuvczXYUJCLQ0OZmwqpdbkhao*#MW&8%B@$"
 	DefaultWidth = 140
 	DefaultHeight = 120
