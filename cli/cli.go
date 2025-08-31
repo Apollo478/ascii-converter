@@ -32,6 +32,9 @@ func Execute() {
 		output := convertCmd.String("output", "", "output file")
 		convertCmd.StringVar(output, "o", "", "Alias for --output")
 
+		fullRamp := convertCmd.Bool("full-ramp", false ,"Use a wider set of characters")
+		convertCmd.BoolVar(fullRamp, "fr", false, "Aliad for --full-ramp")
+
 		width := convertCmd.Int("width", converter.DefaultWidth, "ASCII width")
 		convertCmd.IntVar(width, "w", converter.DefaultWidth, "Alias for --width")
 
@@ -70,6 +73,9 @@ func Execute() {
 		opts.Parallel = *parallel
 		opts.Invert = *inverse
 		opts.Preview = *preview
+		if *fullRamp {
+			converter.RevRamp = converter.FullRamp
+		}
 		if *inverse {
 			converter.RevRamp = converter.ReverseRamp(converter.RevRamp)
 		}
@@ -153,12 +159,14 @@ func Execute() {
 		input := previewCmd.String("input", "", "Input file")
 		previewCmd.StringVar(input, "i", "", "Alias for --input")
 
+		fullRamp := previewCmd.Bool("full-ramp", false ,"Use a wider set of characters")
+		previewCmd.BoolVar(fullRamp, "fr", false, "Aliad for --full-ramp")
+
 		width := previewCmd.Int("width", converter.DefaultWidth, "ASCII width")
 		previewCmd.IntVar(width, "w", converter.DefaultWidth, "Alias for --width")
 
 		height := previewCmd.Int("height", converter.DefaultHeight, "ASCII height")
 		previewCmd.IntVar(height, "h", converter.DefaultHeight, "Alias for --height")
-
 
 		fitTerminal := previewCmd.Bool("fit-terminal", false, "Fit ASCII to terminal size")
 		previewCmd.BoolVar(fitTerminal, "f", false, "Alias for --fit-terminal")
@@ -188,6 +196,9 @@ func Execute() {
 		opts.Parallel = *parallel
 		opts.Invert = *inverse
 		opts.Preview = true
+		if *fullRamp {
+			converter.RevRamp = converter.FullRamp
+		}
 		if *inverse {
 			converter.RevRamp = converter.ReverseRamp(converter.RevRamp)
 		}
@@ -265,6 +276,8 @@ func Execute() {
 		height := cameraCmd.Int("height", converter.DefaultHeight, "ASCII height")
 		cameraCmd.IntVar(height, "h", converter.DefaultHeight, "Alias for --height")
 
+		fullRamp := cameraCmd.Bool("full-ramp", false ,"Use a wider set of characters")
+		cameraCmd.BoolVar(fullRamp, "fr", false, "Aliad for --full-ramp")
 
 		fitTerminal := cameraCmd.Bool("fit-terminal", false, "Fit ASCII to terminal size")
 		cameraCmd.BoolVar(fitTerminal, "f", false, "Alias for --fit-terminal")
@@ -299,6 +312,9 @@ func Execute() {
 		opts.Parallel = *parallel
 		opts.Invert = *inverse
 		opts.Preview =*preview 
+		if *fullRamp {
+			converter.RevRamp = converter.FullRamp
+		}
 		if *inverse {
 			converter.RevRamp = converter.ReverseRamp(converter.RevRamp)
 		}
@@ -307,10 +323,10 @@ func Execute() {
 		}
 		opts.Height = opts.Height / opts.Compression
 		opts.Width = opts.Width / opts.Compression
-		if opts.Parallel && opts.Preview {
-			fmt.Println("Cant preview paralelled frames")
-			os.Exit(1)
-		}
+		// if opts.Parallel && opts.Preview {
+		// 	fmt.Println("Cant preview paralelled frames")
+		// 	os.Exit(1)
+		// }
 		err := converter.CameraToAscii(opts,0,*output)
 		if err != nil {
 			fmt.Println(err)
