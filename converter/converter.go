@@ -101,7 +101,6 @@ func PrintAsciiVideo(asciis []Ascii_t,opts Options) {
 		time.Sleep(33 * time.Millisecond)
 	}
 }
-
 func CameraToAscii(opts Options,camera int,output string) error {
 	
 	camReader ,err:= NewCamReader(opts,camera)
@@ -404,7 +403,23 @@ func intToBytes(i int) []byte {
 	}
 	return buf[n:]
 }
+func PrintAsciiSlow(ascii Ascii_t,opts Options) {
+	for y := 0; y < len(ascii.AsciiChars); y++ {
+		for x := 0; x < len(ascii.AsciiChars[y]); x++ {
+			ch := ascii.AsciiChars[y][x]
+			color := ascii.RgbColors[y][x]
 
+			if opts.UseColor {
+				fmt.Printf("\x1b[38;2;%d;%d;%dm%s",
+				color.R, color.G, color.B, string(ch))
+			}else {
+				fmt.Printf("%c",ch)
+			}
+		}
+		fmt.Print("\n")
+	}
+	fmt.Print("\x1b[0m")
+}
 func PrintAsciiImage(ascii Ascii_t, opts Options) {
 	os.Stdout.WriteString("\033[?25l")
 	defer os.Stdout.WriteString("\033[?25h")

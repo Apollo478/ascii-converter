@@ -183,6 +183,8 @@ func Execute() {
 		inverse := previewCmd.Bool("invert", false, "Invert the ASCII scale")
 		previewCmd.BoolVar(inverse, "I", false, "Alias for --invert")
 
+		slowPrint := previewCmd.Bool("plain", false, "Output the ASCII art as simple line-by-line text with ANSI color codes, without using cursor repositioning or screen clearing escape sequences.")
+
 		aspectRatio := previewCmd.Float64("aspect-ratio", 0.5, "Set aspect ratio of ASCII’s Y axis")
 		previewCmd.Float64Var(aspectRatio, "a", 0.5, "Alias for --aspect-ratio")
 		previewCmd.Parse(os.Args[2:])
@@ -241,7 +243,11 @@ func Execute() {
 				fmt.Println(err)
 				os.Exit(1)
 			}
-			converter.PrintAsciiImage(ascii,opts)	
+			if *slowPrint {
+				converter.PrintAsciiSlow(ascii,opts)
+			}else {
+				converter.PrintAsciiImage(ascii,opts)	
+			}
 		}
 		if extension == "gif" {
 			file,err := os.Open(*input)
