@@ -104,6 +104,8 @@ Usage of preview:
         ASCII height (default 120)
   -i string
         Alias for --input
+  -plain
+    	Output the ASCII art as simple line-by-line text with ANSI color codes, without using cursor repositioning or screen clearing escape sequences.(image only)
   -input string
         Input file
   -invert
