@@ -54,6 +54,90 @@ func PixelToChar(gray uint8) rune{
 	return rune( RevRamp[index] )
 
 }
+func centerAscii(ascii []string, termWidth, termHeight int) []string {
+    artHeight := len(ascii)
+    artWidth := len(ascii[0])
+
+    // Vertical padding
+    topPad := (termHeight - artHeight) / 2
+    bottomPad := termHeight - artHeight - topPad
+
+    // Horizontal padding
+    leftPad := (termWidth - artWidth) / 2
+    if leftPad < 0 {
+        leftPad = 0 // avoid negative padding
+    }
+
+    // Build centered output
+    padded := make([]string, 0, termHeight)
+    emptyRow := strings.Repeat(" ", termWidth)
+
+    // top empty rows
+    for i := 0; i < topPad; i++ {
+        padded = append(padded, emptyRow)
+    }
+
+    // centered rows
+    for _, row := range ascii {
+        if len(row) > termWidth {
+            row = row[:termWidth] // truncate if too wide
+        }
+        line := strings.Repeat(" ", leftPad) + row
+        // fill right side if shorter
+        if len(line) < termWidth {
+            line += strings.Repeat(" ", termWidth-len(line))
+        }
+        padded = append(padded, line)
+    }
+
+    // bottom empty rows
+    for i := 0; i < bottomPad; i++ {
+        padded = append(padded, emptyRow)
+    }
+
+    return padded
+}
+
+func samplesToAscii(samples []int16, width, height int) []string {
+    ascii := make([]string, height)
+    for i := range ascii {
+        ascii[i] = strings.Repeat(" ", width)
+    }
+
+    for x := 0; x < width && x < len(samples); x++ {
+        amp := int(float64(samples[x]) / 32768.0 * float64(height/2))
+        mid := height / 2
+        y := mid - amp
+        if y >= 0 && y < height {
+            row := []rune(ascii[y])
+            row[x] = '#'
+            ascii[y] = string(row)
+        }
+    }
+    return ascii
+}
+func AudioToAscii(intput string) {
+	reader, err := NewAudioReader(intput, 44100, 1, 1024)
+	if err != nil {
+		panic(err)
+	}
+
+	for {
+		samples, err := reader.ReadChunk()
+		if err != nil {
+			break
+		}
+		width, height := GetTermBounds()
+		
+		ascii := samplesToAscii(samples, width, height * 2) 
+		ascii = centerAscii(ascii,width,height * 2)
+		for _, line := range ascii {
+			fmt.Println(line)
+		}
+		fmt.Print("\033[H") 	
+		time.Sleep(100 * time.Millisecond)
+	}
+}
 
 func SaveAsciiToVideo(frames []Ascii_t, opts Options,output string) error  {
 	recorder, err := NewRecorder(opts,output)
