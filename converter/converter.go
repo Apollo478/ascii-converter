@@ -8,6 +8,7 @@ import (
 	"image/gif"
 	_ "image/jpeg"
 	"image/png"
+	"math"
 	"runtime"
 	"strings"
 
@@ -54,49 +55,6 @@ func PixelToChar(gray uint8) rune{
 	return rune( RevRamp[index] )
 
 }
-func centerAscii(ascii []string, termWidth, termHeight int) []string {
-    artHeight := len(ascii)
-    artWidth := len(ascii[0])
-
-    // Vertical padding
-    topPad := (termHeight - artHeight) / 2
-    bottomPad := termHeight - artHeight - topPad
-
-    // Horizontal padding
-    leftPad := (termWidth - artWidth) / 2
-    if leftPad < 0 {
-        leftPad = 0 // avoid negative padding
-    }
-
-    // Build centered output
-    padded := make([]string, 0, termHeight)
-    emptyRow := strings.Repeat(" ", termWidth)
-
-    // top empty rows
-    for i := 0; i < topPad; i++ {
-        padded = append(padded, emptyRow)
-    }
-
-    // centered rows
-    for _, row := range ascii {
-        if len(row) > termWidth {
-            row = row[:termWidth] // truncate if too wide
-        }
-        line := strings.Repeat(" ", leftPad) + row
-        // fill right side if shorter
-        if len(line) < termWidth {
-            line += strings.Repeat(" ", termWidth-len(line))
-        }
-        padded = append(padded, line)
-    }
-
-    // bottom empty rows
-    for i := 0; i < bottomPad; i++ {
-        padded = append(padded, emptyRow)
-    }
-
-    return padded
-}
 
 func samplesToAscii(samples []int16, width, height int) []string {
     ascii := make([]string, height)
@@ -116,8 +74,107 @@ func samplesToAscii(samples []int16, width, height int) []string {
     }
     return ascii
 }
+func samplesToBars(samples []int16, width, height int) []string {
+    step := int(math.Max(1, float64(len(samples))/float64(width)))
+    bars := make([]float64, width)
+
+    for i := 0; i < width; i++ {
+        sum := 0.0
+        count := 0
+        for j := i * step; j < (i+1)*step && j < len(samples); j++ {
+            sum += math.Abs(float64(samples[j]))
+            count++
+        }
+        if count > 0 {
+            bars[i] = sum / float64(count)
+        }
+    }
+
+    maxAmp := 0.0
+    for _, v := range bars {
+        if v > maxAmp {
+            maxAmp = v
+        }
+    }
+    if maxAmp == 0 {
+        maxAmp = 1
+    }
+
+    chars := []rune{'.', '-', '*', '#'} // levels
+
+    // Canvas
+    ascii := make([][]rune, height)
+    for y := 0; y < height; y++ {
+        ascii[y] = []rune(strings.Repeat(" ", width))
+    }
+
+    for x, v := range bars {
+        barHeight := int((v / maxAmp) * float64(height))
+        for y := 0; y < barHeight && y < height; y++ {
+            level := (y * len(chars)) / height
+            ascii[height-1-y][x] = chars[level]
+        }
+    }
+
+    // Convert to []string
+    lines := make([]string, height)
+    for i := 0; i < height; i++ {
+        lines[i] = string(ascii[i])
+    }
+    return lines
+}
+
+func samplesToSpectrum(samples []int16,width int,height int) []string {
+	sampleLenght := len(samples)	
+	buf := make([]float64,sampleLenght)
+	for i,sample := range samples {
+		buf[i] = float64(sample)
+	}
+
+	step := int(math.Max(1,float64(sampleLenght/2)/float64(width)))
+	spectrum := make([]float64,width)
+
+	for x := 0; x < width; x ++{
+		re,im := 0.0,0.0
+
+		for n:=0; n < sampleLenght; n ++ {
+			angle := -2.0 * math.Pi * float64(x * step) * float64(n) /float64(sampleLenght)
+
+			re += buf[n] * math.Cos(angle)
+			im += buf[n] * math.Sin(angle)
+		}
+		spectrum[x] = math.Sqrt(re*re + im*im)
+	}
+	maxMag := 0.0
+	for _,m:= range spectrum {
+		if m > maxMag {
+			maxMag = m
+		}
+	}
+    if maxMag == 0 {
+        maxMag = 1
+    }
+	ascii := make([][]rune,height)
+	for y := 0; y < height; y++{
+		ascii[y] = []rune(strings.Repeat(" ", width))
+	}
+
+	for x,mag := range spectrum {
+		barHeight  := int((mag/maxMag) * float64(height))
+		for y := 0; y < barHeight; y++ {
+			level := (y*len(RevRamp)) / height
+			ascii[height-1-y][x] = rune(RevRamp[level])
+		}
+	}
+
+	lines := make([]string,height)
+	for i := 0; i < height; i++ {
+        lines[i] = string(ascii[i])
+    }
+    return lines
+}
 func AudioToAscii(intput string) {
-	reader, err := NewAudioReader(intput, 44100, 1, 1024)
+	reader, err := NewAudioReader(intput, 44100, 5, 1024)
 	if err != nil {
 		panic(err)
 	}
@@ -129,8 +186,8 @@ func AudioToAscii(intput string) {
 		}
 		width, height := GetTermBounds()
 		
-		ascii := samplesToAscii(samples, width, height * 2) 
-		ascii = centerAscii(ascii,width,height * 2)
+		ascii := samplesToBars(samples,width,height)
+
 		for _, line := range ascii {
 			fmt.Println(line)
 		}
