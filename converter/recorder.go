@@ -24,10 +24,10 @@ func NewRecorder(opts Options,output string) (*Recorder, error){
         "-pix_fmt", "rgb24",
         "-s", fmt.Sprintf("%dx%d", width, height),
         "-r", "10",          
-        "-i", "pipe:0",
+		"-i", "pipe:0",
 		"-c:v", "libx264",
-		"-crf", "0",          
-		"-preset", "slow",     
+		"-preset", "ultrafast",
+		"-qp", "0",
         output,
     )
 	frameSize = width * height*3

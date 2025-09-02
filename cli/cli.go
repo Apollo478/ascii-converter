@@ -101,10 +101,10 @@ func Execute() {
 				fmt.Println(err)
 				os.Exit(1)
 			}
-			go converter.SaveAsciiToVideo(asciis,opts,*output)
 			if *preview {
-				converter.PrintAsciiVideo(asciis,opts)
+			 go	converter.PrintAsciiVideo(asciis,opts)
 			}
+			converter.SaveAsciiToVideo(asciis,opts,*output)
 		}
 		if extension =="png" || extension =="jpg" || extension =="jpeg" {
 			file,err := os.Open(*input)
