@@ -216,7 +216,7 @@ func Execute() {
 		}
 		extension := converter.GetFileExtension(*input)
 		opts.PreviewInPreview = true
-		if extension == "mp3" {
+		if extension == "mp3" || extension == "wav"  {
 			converter.AudioToAscii(*input,opts)
 		}
 		if extension == "mp4" || extension == "mov" || extension == "avi" || extension == "webm" {
