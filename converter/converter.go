@@ -55,26 +55,40 @@ func PixelToChar(gray uint8) rune{
 	return rune( RevRamp[index] )
 
 }
+func samplesToAscii(samples []int16, width, height int) Ascii_t {
+	var ascii Ascii_t
+	ascii.AsciiChars = make([][]rune, height)
+	ascii.RgbColors = make([][]Rgb, height)
 
-func samplesToAscii(samples []int16, width, height int) []string {
-    ascii := make([]string, height)
-    for i := range ascii {
-        ascii[i] = strings.Repeat(" ", width)
-    }
+	for i := range ascii.AsciiChars {
+		ascii.AsciiChars[i] = make([]rune, width)
+		ascii.RgbColors[i] = make([]Rgb, width)
+		for j := 0; j < width; j++ {
+			ascii.AsciiChars[i][j] = ' '
+		}
+	}
 
-    for x := 0; x < width && x < len(samples); x++ {
-        amp := int(float64(samples[x]) / 32768.0 * float64(height/2))
-        mid := height / 2
-        y := mid - amp
-        if y >= 0 && y < height {
-            row := []rune(ascii[y])
-            row[x] = '#'
-            ascii[y] = string(row)
-        }
-    }
-    return ascii
+	mid := height / 2
+	for x := 0; x < width && x < len(samples); x++ {
+		amp := int(float64(samples[x]) / 32768.0 * float64(height/2))
+		y := mid - amp
+		if y >= 0 && y < height {
+			if y < mid {
+				for row := y; row <= mid; row++ {
+					ascii.AsciiChars[row][x] = '#'
+				}
+			} else {
+				for row := mid; row <= y; row++ {
+					ascii.AsciiChars[row][x] = '#'
+				}
+			}
+		}
+	}
+
+	return ascii
 }
-func samplesToBars(samples []int16, width, height int) []string {
+
+func samplesToBars(samples []int16, width, height int) Ascii_t {
     step := int(math.Max(1, float64(len(samples))/float64(width)))
     bars := make([]float64, width)
 
@@ -89,7 +103,6 @@ func samplesToBars(samples []int16, width, height int) []string {
             bars[i] = sum / float64(count)
         }
     }
-
     maxAmp := 0.0
     for _, v := range bars {
         if v > maxAmp {
@@ -99,29 +112,24 @@ func samplesToBars(samples []int16, width, height int) []string {
     if maxAmp == 0 {
         maxAmp = 1
     }
+    chars :=RevRamp 
 
-    chars := []rune{'.', '-', '*', '#'} // levels
-
-    // Canvas
-    ascii := make([][]rune, height)
+	var ascii Ascii_t
+	ascii.AsciiChars = make([][]rune, height)
+	ascii.RgbColors = make([][]Rgb, height)
     for y := 0; y < height; y++ {
-        ascii[y] = []rune(strings.Repeat(" ", width))
+        ascii.AsciiChars[y] = []rune(strings.Repeat(" ", width))
+        ascii.RgbColors[y] =make([]Rgb,width) 
     }
 
     for x, v := range bars {
         barHeight := int((v / maxAmp) * float64(height))
         for y := 0; y < barHeight && y < height; y++ {
             level := (y * len(chars)) / height
-            ascii[height-1-y][x] = chars[level]
+            ascii.AsciiChars[height-1-y][x] = rune(chars[level])
         }
     }
-
-    // Convert to []string
-    lines := make([]string, height)
-    for i := 0; i < height; i++ {
-        lines[i] = string(ascii[i])
-    }
-    return lines
+	return ascii
 }
 
 func samplesToSpectrum(samples []int16,width int,height int) []string {
@@ -174,11 +182,10 @@ func samplesToSpectrum(samples []int16,width int,height int) []string {
     return lines
 }
 func AudioToAscii(intput string) {
-	reader, err := NewAudioReader(intput, 44100, 5, 1024)
+	reader, err := NewAudioReader(intput, 44100, 1, 1024)
 	if err != nil {
 		panic(err)
 	}
-
 	for {
 		samples, err := reader.ReadChunk()
 		if err != nil {
@@ -187,15 +194,22 @@ func AudioToAscii(intput string) {
 		width, height := GetTermBounds()
 		
 		ascii := samplesToBars(samples,width,height)
-
-		for _, line := range ascii {
-			fmt.Println(line)
-		}
-		fmt.Print("\033[H") 	
+		 opts := Options{
+		 	Height: height,
+		 	Width: width,
+		 	UseColor: true,
+		 	ClearScreen: true,
+		 }
+		 PrintAsciiImage(ascii,opts)
 		time.Sleep(100 * time.Millisecond)
 	}
 }
-
+func PrintAudio(s []string) {
+	for _, line := range s {
+			fmt.Println(line)
+		}
+		fmt.Print("\033[H")
+}
 func SaveAsciiToVideo(frames []Ascii_t, opts Options,output string) error  {
 	recorder, err := NewRecorder(opts,output)
 	if err != nil {
