@@ -119,14 +119,19 @@ func samplesToAscii(samples []int16, width, height int) Ascii_t {
 				barHeight := mid - y
 				for i, row := 0, y; row <= mid; row, i = row+1, i+1 {
 					scale := float32(i) / float32(barHeight) 
-					ascii.AsciiChars[row][x] = '#'
+					charIndex := int(scale * float32(len(RevRamp)-1))
+					ascii.AsciiChars[row][x] =rune(RevRamp[charIndex] )
 					ascii.RgbColors[row][x] = rosePineGradient(scale)
 				}
 			} else {
 				barHeight := y - mid
+				if barHeight == 0 {
+					barHeight = 1
+				}
 				for i, row := 0, mid; row <= y; row, i = row+1, i+1 {
 					scale := float32(i) / float32(barHeight) 
-					ascii.AsciiChars[row][x] = '#' 
+					charIndex := int((1-scale) * float32(len(RevRamp)-1))
+					ascii.AsciiChars[row][x] =rune(RevRamp[charIndex] )
 					ascii.RgbColors[row][x] = rosePineGradient(scale)
 				}
 
