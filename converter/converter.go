@@ -64,16 +64,37 @@ func PixelToChar(gray uint8) rune{
 	return rune( RevRamp[index] )
 
 }
-func rosePineColor(row, mid, height int) Rgb {
+func rosePineAmpColor(amp int, height int) Rgb {
+    strength := float64(math.Abs(float64(amp)) / float64(height/2))
     switch {
-    case row < mid/2: 
-        return Rgb{156, 207, 216,255} 
-    case row < mid: 
-        return Rgb{235, 188, 186,255} 
-    case row < (mid+height)/2: 
-        return Rgb{163, 190, 140,255} 
-    default: 
-        return Rgb{235, 188, 186,255} 
+    case strength < 0.20:
+        return Rgb{224, 222, 244,255}
+    case strength < 0.40:
+        return Rgb{156, 207, 216,255}
+    case strength < 0.60:
+        return Rgb{163, 190, 140,255}
+    case strength < 0.80:
+        return Rgb{197, 199, 198,255}
+
+    default:
+        return Rgb{235, 188, 186,255}
+    }
+}
+func rosePineGradient(scale float32) Rgb {
+    if scale < 0.5 {
+        t := scale / 0.5
+        return lerpColor(Rgb{156,207,216,255}, Rgb{163,190,140,255}, t)
+    } else {
+        t := (scale-0.5)/0.5
+        return lerpColor(Rgb{163,190,140,255}, Rgb{235,188,186,255}, t)
+    }
+}
+
+func lerpColor(a, b Rgb, t float32) Rgb {
+    return Rgb{
+        R: uint32(float32(a.R)*(1-t) + float32(b.R)*t),
+        G: uint32(float32(a.G)*(1-t) + float32(b.G)*t),
+        B: uint32(float32(a.B)*(1-t) + float32(b.B)*t),
     }
 }
 func samplesToAscii(samples []int16, width, height int) Ascii_t {
@@ -95,15 +116,20 @@ func samplesToAscii(samples []int16, width, height int) Ascii_t {
 		y := mid - amp
 		if y >= 0 && y < height {
 			if y < mid {
-				for row := y; row <= mid; row++ {
+				barHeight := mid - y
+				for i, row := 0, y; row <= mid; row, i = row+1, i+1 {
+					scale := float32(i) / float32(barHeight) 
 					ascii.AsciiChars[row][x] = '#'
-					ascii.RgbColors[row][x] = rosePineColor(row,mid,height)
+					ascii.RgbColors[row][x] = rosePineGradient(scale)
 				}
 			} else {
-				for row := mid; row <= y; row++ {
-					ascii.AsciiChars[row][x] ='#' 
-					ascii.RgbColors[row][x] = rosePineColor(row,mid,height)
+				barHeight := y - mid
+				for i, row := 0, mid; row <= y; row, i = row+1, i+1 {
+					scale := float32(i) / float32(barHeight) 
+					ascii.AsciiChars[row][x] = '#' 
+					ascii.RgbColors[row][x] = rosePineGradient(scale)
 				}
+
 			}
 		}
 	}
@@ -150,6 +176,7 @@ func samplesToBars(samples []int16, width, height int) Ascii_t {
 
             level := (y * len(chars)) / height
             ascii.AsciiChars[height-1-y][x] = rune(chars[level])
+            ascii.RgbColors[height-1-y][x] =rosePineAmpColor(barHeight,height) 
         }
     }
 	return ascii
@@ -198,33 +225,31 @@ func samplesToSpectrum(samples []int16,width int,height int) Ascii_t  {
 		for y := 0; y < barHeight; y++ {
 			level := (y*len(RevRamp)) / height
 			ascii.AsciiChars[height-1-y][x] = rune(RevRamp[level])
+            ascii.RgbColors[height-1-y][x] =rosePineAmpColor(barHeight,height) 
 		}
 	}
 
 	return ascii
 }
-func AudioToAscii(intput string) {
-	reader, err := NewAudioReader(intput, 44100, 1, 1024)
-	if err != nil {
-		panic(err)
-	}
-	for {
-		samples, err := reader.ReadChunk()
-		if err != nil {
-			break
-		}
-		width, height := GetTermBounds()
-		
-		ascii := samplesToAscii(samples,width,height)
-		 opts := Options{
-		 	Height: height,
-		 	Width: width,
-		 	UseColor: true,
-		 	ClearScreen: true,
-		 }
-		 PrintAsciiImage(ascii,opts)
-		time.Sleep(100 * time.Millisecond)
-	}
+func AudioToAscii(input string,opts Options) {
+	reader, err := NewAudioReader(input, 44100, 1, 5000)
+    if err != nil {
+        panic(err)
+    }
+
+    frameDuration := time.Duration(reader.chunkSize) * time.Second / time.Duration(reader.sampleRate)
+
+    for {
+        samples, err := reader.ReadChunk()
+        if err != nil {
+            break
+        }
+
+        ascii := samplesToAscii(samples, opts.Width, opts.Height)
+        PrintAsciiImage(ascii, opts)
+
+        time.Sleep(frameDuration)
+    }
 }
 func PrintAudio(s []string) {
 	for _, line := range s {
