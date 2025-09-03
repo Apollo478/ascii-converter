@@ -50,6 +50,25 @@ func NewAudioReader(input string, sampleRate, channels, chunkSize int) (*AudioRe
 	return &audioReader, nil
 }
 
+func (a *AudioReader) ReadChunk2d() ([][]int16,error){
+	n,err := io.ReadFull(a.stdout,a.buf)
+	if err !=nil {
+		return nil,err
+	}
+	frames := n / (2 * a.channels)
+	samples := make([][]int16,a.channels)
+	for c:=0; c!=a.channels; c++ {
+		samples[c]= make([]int16,frames)
+	}
+
+	for i := 0;i < frames; i++ {
+		for c:=0; c!=a.channels; c++ {
+			offset := (i*a.channels +c)*2
+			samples[c][i] = int16(binary.LittleEndian.Uint16(a.buf[offset:]))
+		}
+	}
+	return samples,nil
+}
 func (a *AudioReader) ReadChunk() ([]int16, error) {
 	n, err := io.ReadFull(a.stdout, a.buf)
 	if err != nil {
