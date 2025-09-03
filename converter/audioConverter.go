@@ -46,12 +46,8 @@ func samplesToAscii2D(samples [][]int16, width, height int) Ascii_t {
     n := min(len(left), len(right))
 
     for i := 0; i < n; i++ {
-        // x := int((float64(left[i]) / 32768.0 + 1) * float64(width/2))
-        // y := int((float64(right[i]) / 32768.0 + 1) * float64(height/2))
 		x := int((float64(left[i]) / 32768.0) * float64(width/2)) + width/2
 		y := height/2 - int((float64(right[i]) / 32768.0) * float64(height/2))
-
-
         if x >= 0 && x < width && y >= 0 && y < height {
             scale := float32(i) / float32(n)
             charIndex := int(scale * float32(len(RevRamp)-1))
@@ -203,7 +199,7 @@ func samplesToSpectrum(samples []int16,width int,height int) Ascii_t  {
 	return ascii
 }
 func AudioToAscii(input string,opts Options) {
-	reader, err := NewAudioReader(input, 44100, 2, 5000)
+	reader, err := NewAudioReader(input, 44100, 2, 2084)
     if err != nil {
         panic(err)
     }
