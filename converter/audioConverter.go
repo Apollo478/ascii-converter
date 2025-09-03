@@ -199,6 +199,27 @@ func samplesToSpectrum(samples []int16,width int,height int) Ascii_t  {
 	return ascii
 }
 func AudioToAscii(input string,opts Options) {
+	reader, err := NewAudioReader(input, 44100, 1, 2084)
+    if err != nil {
+        panic(err)
+    }
+
+    frameDuration := time.Duration(reader.chunkSize) * time.Second / time.Duration(reader.sampleRate)
+
+    for {
+        samples, err := reader.ReadChunk()
+        if err != nil {
+            break
+        }
+
+        ascii := samplesToAscii(samples, opts.Width, opts.Height)
+        PrintAsciiImage(ascii, opts)
+
+        time.Sleep(frameDuration)
+    }
+}
+
+func AudioToAscii2D(input string,opts Options) {
 	reader, err := NewAudioReader(input, 44100, 2, 2084)
     if err != nil {
         panic(err)
