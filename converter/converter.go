@@ -34,6 +34,15 @@ const (
 	DefaultHeight = 120
 
 )                                
+var RosePine = []Rgb{
+    {197, 199, 198,255}, 
+    {235, 188, 186,255}, 
+    {235, 188, 186,255}, 
+    {245, 224, 220,255}, 
+    {156, 207, 216,255}, 
+    {163, 190, 140,255}, 
+    {224, 222, 244,255}, 
+}
 func ReverseRamp(ramp string) string {
 	runes := []rune(ramp)
 	for i, j := 0, len(runes)-1; i < j; i, j = i+1, j-1 {
@@ -54,6 +63,18 @@ func PixelToChar(gray uint8) rune{
 	index := int(scale * float32(len(RevRamp)-1))
 	return rune( RevRamp[index] )
 
+}
+func rosePineColor(row, mid, height int) Rgb {
+    switch {
+    case row < mid/2: 
+        return Rgb{156, 207, 216,255} 
+    case row < mid: 
+        return Rgb{235, 188, 186,255} 
+    case row < (mid+height)/2: 
+        return Rgb{163, 190, 140,255} 
+    default: 
+        return Rgb{235, 188, 186,255} 
+    }
 }
 func samplesToAscii(samples []int16, width, height int) Ascii_t {
 	var ascii Ascii_t
@@ -76,10 +97,12 @@ func samplesToAscii(samples []int16, width, height int) Ascii_t {
 			if y < mid {
 				for row := y; row <= mid; row++ {
 					ascii.AsciiChars[row][x] = '#'
+					ascii.RgbColors[row][x] = rosePineColor(row,mid,height)
 				}
 			} else {
 				for row := mid; row <= y; row++ {
-					ascii.AsciiChars[row][x] = '#'
+					ascii.AsciiChars[row][x] ='#' 
+					ascii.RgbColors[row][x] = rosePineColor(row,mid,height)
 				}
 			}
 		}
@@ -87,7 +110,6 @@ func samplesToAscii(samples []int16, width, height int) Ascii_t {
 
 	return ascii
 }
-
 func samplesToBars(samples []int16, width, height int) Ascii_t {
     step := int(math.Max(1, float64(len(samples))/float64(width)))
     bars := make([]float64, width)
@@ -125,6 +147,7 @@ func samplesToBars(samples []int16, width, height int) Ascii_t {
     for x, v := range bars {
         barHeight := int((v / maxAmp) * float64(height))
         for y := 0; y < barHeight && y < height; y++ {
+
             level := (y * len(chars)) / height
             ascii.AsciiChars[height-1-y][x] = rune(chars[level])
         }
@@ -132,7 +155,7 @@ func samplesToBars(samples []int16, width, height int) Ascii_t {
 	return ascii
 }
 
-func samplesToSpectrum(samples []int16,width int,height int) []string {
+func samplesToSpectrum(samples []int16,width int,height int) Ascii_t  {
 	sampleLenght := len(samples)	
 	buf := make([]float64,sampleLenght)
 	for i,sample := range samples {
@@ -162,24 +185,23 @@ func samplesToSpectrum(samples []int16,width int,height int) []string {
     if maxMag == 0 {
         maxMag = 1
     }
-	ascii := make([][]rune,height)
-	for y := 0; y < height; y++{
-		ascii[y] = []rune(strings.Repeat(" ", width))
-	}
+	var ascii Ascii_t
+	ascii.AsciiChars = make([][]rune, height)
+	ascii.RgbColors = make([][]Rgb, height)
+    for y := 0; y < height; y++ {
+        ascii.AsciiChars[y] = []rune(strings.Repeat(" ", width))
+        ascii.RgbColors[y] =make([]Rgb,width) 
+    }
 
 	for x,mag := range spectrum {
 		barHeight  := int((mag/maxMag) * float64(height))
 		for y := 0; y < barHeight; y++ {
 			level := (y*len(RevRamp)) / height
-			ascii[height-1-y][x] = rune(RevRamp[level])
+			ascii.AsciiChars[height-1-y][x] = rune(RevRamp[level])
 		}
 	}
 
-	lines := make([]string,height)
-	for i := 0; i < height; i++ {
-        lines[i] = string(ascii[i])
-    }
-    return lines
+	return ascii
 }
 func AudioToAscii(intput string) {
 	reader, err := NewAudioReader(intput, 44100, 1, 1024)
@@ -193,7 +215,7 @@ func AudioToAscii(intput string) {
 		}
 		width, height := GetTermBounds()
 		
-		ascii := samplesToBars(samples,width,height)
+		ascii := samplesToAscii(samples,width,height)
 		 opts := Options{
 		 	Height: height,
 		 	Width: width,
