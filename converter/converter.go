@@ -32,15 +32,6 @@ const (
 	DefaultHeight = 120
 
 )                                
-var RosePine = []Rgb{
-    {197, 199, 198,255}, 
-    {235, 188, 186,255}, 
-    {235, 188, 186,255}, 
-    {245, 224, 220,255}, 
-    {156, 207, 216,255}, 
-    {163, 190, 140,255}, 
-    {224, 222, 244,255}, 
-}
 func ReverseRamp(ramp string) string {
 	runes := []rune(ramp)
 	for i, j := 0, len(runes)-1; i < j; i, j = i+1, j-1 {
