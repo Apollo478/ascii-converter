@@ -217,7 +217,7 @@ In this example, the tool takes a video input and outputs an ASCII-rendered vers
 ac preview -i examples/andvari.mp4 -C
 ```
 ## Audio visualization 
-[Check out the video](https://www.youtube.com/watch?v=bvD18I6X0cE)
+[Check out the audio source video](https://www.youtube.com/watch?v=bvD18I6X0cE)
 
 ![Audio visualization](./examples/audio.gif)
 
