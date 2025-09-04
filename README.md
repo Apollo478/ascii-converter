@@ -32,6 +32,7 @@ Commands:
   convert   Convert image/gif/video to ASCII
   preview   Preview ASCII frames in terminal
   camera    Preview/convert camera ASCII frames
+  audio   Visualize audio in ascii art 
 
 ``` 
 ### convert 
@@ -160,6 +161,49 @@ Usage of camera:
   -width int
         ASCII width (default 140)
 ```
+
+### audio 
+```bash
+ac audio -i <input> [options]
+
+#Options
+-2D
+        2 dimentional audio visualization
+  -C    Alias for --color
+  -I    Alias for --invert
+  -a float
+        Alias for --aspect-ratio (default 0.5)
+  -aspect-ratio float
+        Set aspect ratio of ASCII’s Y axis (default 0.5)
+  -clear-screen
+        Clear screen before printing frames (default true)
+  -color
+        Enable colored ASCII
+  -f    Alias for --fit-terminal (default true)
+  -fit-terminal
+        Fit ASCII to terminal size (default true)
+  -fr
+        Aliad for --full-ramp
+  -full-ramp
+        Use a wider set of characters
+  -h int
+        Alias for --height (default 120)
+  -height int
+        ASCII height (default 120)
+  -i string
+        Alias for --input
+  -input string
+        Input file
+  -invert
+        Invert the ASCII scale
+  -s    Alias for --clear-screen (default true)
+  -w int
+        Alias for --width (default 140)
+  -wave
+        Audio to wave visualization
+  -width int
+        ASCII width (default 140)
+```
 ## 🎥 CLI Demo
 
 Here’s a quick demo of the CLI converting a video into ASCII art:
@@ -172,3 +216,8 @@ In this example, the tool takes a video input and outputs an ASCII-rendered vers
 ```bash
 ac preview -i examples/andvari.mp4 -C
 ```
+## Audio visualization 
+[Check out the video](https://www.youtube.com/watch?v=bvD18I6X0cE)
+
+![Audio visualization](./examples/audio.gif)
+

@@ -103,7 +103,7 @@ func samplesToAscii(samples []int16, width, height int) Ascii_t {
 
 	return ascii
 }
-func samplesToBars(samples []int16, width, height int) Ascii_t {
+func samplesToWave(samples []int16, width, height int) Ascii_t {
     step := int(math.Max(1, float64(len(samples))/float64(width)))
     bars := make([]float64, width)
 
@@ -143,12 +143,11 @@ func samplesToBars(samples []int16, width, height int) Ascii_t {
 
             level := (y * len(chars)) / height
             ascii.AsciiChars[height-1-y][x] = rune(chars[level])
-            ascii.RgbColors[height-1-y][x] =rosePineAmpColor(barHeight,height) 
+            ascii.RgbColors[height-1-y][x] = rosePineGradient(float32(y) / float32(height))
         }
     }
 	return ascii
 }
-
 func samplesToSpectrum(samples []int16,width int,height int) Ascii_t  {
 	sampleLenght := len(samples)	
 	buf := make([]float64,sampleLenght)
@@ -198,10 +197,10 @@ func samplesToSpectrum(samples []int16,width int,height int) Ascii_t  {
 
 	return ascii
 }
-func AudioToAscii(input string,opts Options) {
+func AudioToAscii(input string,opts Options) error {
 	reader, err := NewAudioReader(input, 44100, 1, 2084)
     if err != nil {
-        panic(err)
+		return err
     }
 
     frameDuration := time.Duration(reader.chunkSize) * time.Second / time.Duration(reader.sampleRate)
@@ -209,7 +208,7 @@ func AudioToAscii(input string,opts Options) {
     for {
         samples, err := reader.ReadChunk()
         if err != nil {
-            break
+			return err
         }
 
         ascii := samplesToAscii(samples, opts.Width, opts.Height)
@@ -217,12 +216,34 @@ func AudioToAscii(input string,opts Options) {
 
         time.Sleep(frameDuration)
     }
+	return nil
 }
 
-func AudioToAscii2D(input string,opts Options) {
+func AudioToWave(input string,opts Options) error {
+	reader, err := NewAudioReader(input, 44100, 1, 2084)
+    if err != nil {
+		return err
+    }
+
+    frameDuration := time.Duration(reader.chunkSize) * time.Second / time.Duration(reader.sampleRate)
+
+    for {
+        samples, err := reader.ReadChunk()
+        if err != nil {
+			return err
+        }
+
+        ascii := samplesToWave(samples, opts.Width, opts.Height)
+        PrintAsciiImage(ascii, opts)
+
+        time.Sleep(frameDuration)
+    }
+	return nil
+}
+func AudioToAscii2D(input string,opts Options) error {
 	reader, err := NewAudioReader(input, 44100, 2, 2084)
     if err != nil {
-        panic(err)
+		return err
     }
 
     frameDuration := time.Duration(reader.chunkSize) * time.Second / time.Duration(reader.sampleRate)
@@ -230,7 +251,7 @@ func AudioToAscii2D(input string,opts Options) {
     for {
         samples, err := reader.ReadChunk2d()
         if err != nil {
-            break
+            return  err
         }
 
         ascii := samplesToAscii2D(samples, opts.Width, opts.Height)
@@ -238,6 +259,7 @@ func AudioToAscii2D(input string,opts Options) {
 
         time.Sleep(frameDuration)
     }
+	return  nil
 }
 func PrintAudio(s []string) {
 	for _, line := range s {

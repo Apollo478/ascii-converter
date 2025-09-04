@@ -216,9 +216,6 @@ func Execute() {
 		}
 		extension := converter.GetFileExtension(*input)
 		opts.PreviewInPreview = true
-		if extension == "mp3" || extension == "wav"  {
-			converter.AudioToAscii(*input,opts)
-		}
 		if extension == "mp4" || extension == "mov" || extension == "avi" || extension == "webm" {
 			opts.Preview = true
 			_, err := converter.VideoToAscii(opts,*input)
@@ -278,6 +275,7 @@ func Execute() {
 
 		output := cameraCmd.String("output", "", "output file")
 		cameraCmd.StringVar(output, "o", "", "Alias for --output")
+
 
 		width := cameraCmd.Int("width", converter.DefaultWidth, "ASCII width")
 		cameraCmd.IntVar(width, "w", converter.DefaultWidth, "Alias for --width")
@@ -342,6 +340,94 @@ func Execute() {
 			os.Exit(1)
 		}
 	}
+
+	case "audio": {
+		audioCmd := flag.NewFlagSet("audio", flag.ExitOnError)
+
+		input := audioCmd.String("input", "", "Input file")
+		audioCmd.StringVar(input, "i", "", "Alias for --input")
+
+		width := audioCmd.Int("width", converter.DefaultWidth, "ASCII width")
+		audioCmd.IntVar(width, "w", converter.DefaultWidth, "Alias for --width")
+
+		height := audioCmd.Int("height", converter.DefaultHeight, "ASCII height")
+		audioCmd.IntVar(height, "h", converter.DefaultHeight, "Alias for --height")
+
+		fullRamp := audioCmd.Bool("full-ramp", false ,"Use a wider set of characters")
+		audioCmd.BoolVar(fullRamp, "fr", false, "Aliad for --full-ramp")
+
+		twoD := audioCmd.Bool("2D", false ,"2 dimentional audio visualization")
+
+		wave := audioCmd.Bool("wave", false ,"Audio to wave visualization")
+
+		fitTerminal := audioCmd.Bool("fit-terminal", true, "Fit ASCII to terminal size")
+		audioCmd.BoolVar(fitTerminal, "f", true, "Alias for --fit-terminal")
+
+		color := audioCmd.Bool("color", false, "Enable colored ASCII")
+		audioCmd.BoolVar(color, "C", false, "Alias for --color")
+
+
+
+		clearScreen := audioCmd.Bool("clear-screen", true, "Clear screen before printing frames")
+		audioCmd.BoolVar(clearScreen, "s", true, "Alias for --clear-screen")
+
+		inverse := audioCmd.Bool("invert", false, "Invert the ASCII scale")
+		audioCmd.BoolVar(inverse, "I", false, "Alias for --invert")
+
+		aspectRatio := audioCmd.Float64("aspect-ratio", 0.5, "Set aspect ratio of ASCII’s Y axis")
+		audioCmd.Float64Var(aspectRatio, "a", 0.5, "Alias for --aspect-ratio")
+
+
+		audioCmd.Parse(os.Args[2:])
+		if *input == "" {
+			fmt.Println("Error: -input is required")
+			audioCmd.Usage()
+			os.Exit(1)
+		}
+		opts.Width = *width
+		opts.Height = *height
+		opts.FitTerminal = *fitTerminal
+		opts.AspectRatio = *aspectRatio
+		opts.UseColor = *color
+		opts.AspectRatio = *aspectRatio
+		opts.ClearScreen = *clearScreen
+		opts.Invert = *inverse
+		if *fullRamp {
+			converter.RevRamp = converter.FullRamp
+		}
+		if *inverse {
+			converter.RevRamp = converter.ReverseRamp(converter.RevRamp)
+		}
+		if opts.FitTerminal {
+			opts.Width,opts.Height = converter.GetTermBounds()
+		}
+		opts.Height = opts.Height / opts.Compression
+		opts.Width = opts.Width / opts.Compression
+		// if opts.Parallel && opts.Preview {
+		// 	fmt.Println("Cant preview paralelled frames")
+		// 	os.Exit(1)
+		// }
+		if *twoD {
+			err := converter.AudioToAscii2D(*input,opts)
+			if err != nil {
+				fmt.Println(err.Error())
+				os.Exit(1)
+			}
+		} else if *wave {
+			err := converter.AudioToWave(*input,opts)
+			if err != nil {
+				fmt.Println(err.Error())
+				os.Exit(1)
+			}
+		} else {
+			
+			err := converter.AudioToAscii(*input,opts)
+			if err != nil {
+				fmt.Println(err.Error())
+				os.Exit(1)
+			}
+		}
+	}
 	default:
 		printUsage()
 		os.Exit(1)
@@ -353,4 +439,5 @@ func printUsage() {
 	fmt.Println("  convert   Convert image/gif/video to ASCII")
 	fmt.Println("  preview   Preview ASCII frames in terminal")
 	fmt.Println("  camera   Preview/convert camera ASCII frames ")
+	fmt.Println("  audio   Visualize audio in ascii art ")
 }
